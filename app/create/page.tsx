@@ -1,97 +1,135 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { FileText, Send, ArrowLeft, Calendar, User, AlignLeft } from 'lucide-react'
 
 export default function CreateApproval() {
-  const [formData, setFormData] = useState({
-    dept: '', 
-    name: '', 
-    position: '', 
-    startDate: '', 
-    endDate: '', 
-    type: '연차휴가', // 기본값 변경
-    workProgress: '', 
-    phone: '',
-  })
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  useEffect(() => {
+    checkUser()
+  }, [])
 
-    if (new Date(formData.startDate) > new Date(formData.endDate)) {
-      alert('⚠️ 휴가 종료일은 시작일보다 빠를 수 없습니다.');
-      return;
-    }
-    
-    const { error } = await supabase
-      .from('approvals')
-      .insert([{ 
-        dept: formData.dept,
-        name: formData.name,
-        position: formData.position,
-        start_date: formData.startDate,
-        end_date: formData.endDate,
-        type: formData.type,
-        work_progress: formData.workProgress,
-        phone: formData.phone,
-        status: 'pending',
-        title: `${formData.name} - ${formData.type} 신청` 
-      }])
-
-    if (error) {
-      alert('제출 실패: ' + error.message)
+  async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
     } else {
-      alert('휴가 신청서가 정식으로 접수되었습니다.')
-      window.location.href = '/'
+      setUserEmail(session.user.email || '')
     }
   }
 
-  const inputStyle = { width: '100%', border: 'none', padding: '10px', outline: 'none' }
-  const labelStyle = { backgroundColor: '#f4f4f4', width: '120px', padding: '10px', borderRight: '1px solid #ccc', fontWeight: 'bold' as const }
-  const tdStyle = { borderBottom: '1px solid #ccc', borderRight: '1px solid #ccc' }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    const { error } = await supabase.from('approvals').insert([
+      {
+        title,
+        content,
+        author: userEmail.split('@')[0],
+        status: '대기'
+      }
+    ])
+
+    if (error) {
+      alert('저장 실패: ' + error.message)
+    } else {
+      alert('결재가 성공적으로 기안되었습니다.')
+      router.push('/')
+      router.refresh()
+    }
+    setIsSubmitting(false)
+  }
 
   return (
-    <div style={{ maxWidth: '700px', margin: '50px auto', padding: '40px', backgroundColor: '#fff', border: '1px solid #000' }}>
-      <h1 style={{ textAlign: 'center', fontSize: '32px', marginBottom: '40px', letterSpacing: '10px' }}>휴 가 신 청 서</h1>
-      <form onSubmit={handleSubmit}>
-        <table style={{ width: '100%', borderTop: '2px solid #000', borderLeft: '1px solid #ccc', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr><td style={labelStyle}>소 속</td><td style={tdStyle}><input style={inputStyle} value={formData.dept} onChange={(e) => setFormData({...formData, dept: e.target.value})} required /></td></tr>
-            <tr><td style={labelStyle}>성 명</td><td style={tdStyle}><input style={inputStyle} value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required /></td></tr>
-            <tr><td style={labelStyle}>직 위</td><td style={tdStyle}><input style={inputStyle} value={formData.position} onChange={(e) => setFormData({...formData, position: e.target.value})} required /></td></tr>
-            <tr>
-              <td style={labelStyle}>휴가 기간</td>
-              <td style={tdStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '5px' }}>
-                  <input type="date" style={{ padding: '5px' }} value={formData.startDate} onChange={(e) => setFormData({...formData, startDate: e.target.value})} required />
-                  <span style={{ margin: '0 10px' }}>부터</span>
-                  <input type="date" style={{ padding: '5px' }} value={formData.endDate} min={formData.startDate} onChange={(e) => setFormData({...formData, endDate: e.target.value})} required />
-                  <span style={{ margin: '0 10px' }}>까지</span>
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td style={labelStyle}>휴가 종류</td>
-              <td style={tdStyle}>
-                <div style={{ padding: '10px' }}>
-                  {/* 대표님이 요청하신 순서와 명칭으로 수정 */}
-                  {['연차휴가', '특별휴가', '경조휴가', '병가'].map(t => (
-                    <label key={t} style={{ marginRight: '15px', cursor: 'pointer' }}>
-                      <input type="radio" name="type" checked={formData.type === t} onChange={() => setFormData({...formData, type: t})} /> {t}
-                    </label>
-                  ))}
-                </div>
-              </td>
-            </tr>
-            <tr><td style={labelStyle}>업무 진행</td><td style={tdStyle}><textarea style={{ ...inputStyle, height: '80px', resize: 'none' }} value={formData.workProgress} onChange={(e) => setFormData({...formData, workProgress: e.target.value})} /></td></tr>
-            <tr><td style={{ ...labelStyle, borderBottom: '1px solid #ccc' }}>비상연락처</td><td style={{ ...tdStyle, borderRight: '1px solid #ccc', borderBottom: '1px solid #ccc' }}><input style={inputStyle} value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} /></td></tr>
-          </tbody>
-        </table>
-        <p style={{ textAlign: 'center', marginTop: '30px', color: '#666' }}>위와 같이 휴가를 신청하오니 허락하여 주시기 바랍니다.</p>
-        <div style={{ textAlign: 'center', marginTop: '30px' }}>
-          <button type="submit" style={{ padding: '15px 60px', backgroundColor: '#0070c0', color: '#fff', border: 'none', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>신청서 전송</button>
+    <div className="min-h-screen bg-[#e8f0f8] p-6 font-sans text-slate-700">
+      <div className="max-w-3xl mx-auto">
+        {/* 상단 바 */}
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors">
+            <ArrowLeft size={20} />
+            <span className="font-medium">뒤로가기</span>
+          </button>
+          <h1 className="text-xl font-bold text-slate-800">새 결재 기안하기</h1>
+          <div className="w-20"></div> {/* 밸런스용 */}
         </div>
-      </form>
+
+        {/* 작성 폼 */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+          <div className="p-8 space-y-8">
+            {/* 기본 정보 라벨 */}
+            <div className="grid grid-cols-2 gap-6 pb-8 border-b border-slate-50">
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">기안자</p>
+                <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                  <User size={16} className="text-blue-500" /> {userEmail.split('@')[0]}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">기안일자</p>
+                <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                  <Calendar size={16} className="text-blue-500" /> {new Date().toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+
+            {/* 제목 입력 */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <FileText size={16} className="text-blue-500" /> 결재 제목
+              </label>
+              <input 
+                type="text" 
+                required
+                className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-lg font-medium"
+                placeholder="예: 연차 신청서, 지출 결의서"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+
+            {/* 내용 입력 */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                <AlignLeft size={16} className="text-blue-500" /> 상세 내용
+              </label>
+              <textarea 
+                required
+                rows={10}
+                className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                placeholder="결재 내용을 상세히 입력하세요."
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* 하단 버튼 */}
+          <div className="p-6 bg-slate-50 flex justify-end gap-3">
+            <button 
+              type="button"
+              onClick={() => router.back()}
+              className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+            >
+              취소
+            </button>
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2 disabled:bg-slate-300"
+            >
+              {isSubmitting ? '기안 중...' : <><Send size={18} /> 결재 요청</>}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
