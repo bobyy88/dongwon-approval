@@ -5,9 +5,16 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import { 
-  LayoutDashboard, FileCheck, Calendar, 
-  MessageSquare, Users, Settings, LogOut, 
-  Search, Bell, Menu, X, ChevronRight
+  LayoutDashboard, 
+  HardHat, 
+  FileCheck2, 
+  Users2, 
+  Settings2, 
+  LogOut, 
+  Menu, 
+  ChevronRight,
+  Bell,
+  Search
 } from 'lucide-react'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -30,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     checkUser()
   }, [pathname, router])
 
-  // 모바일에서 페이지 이동 시 사이드바 닫기
+  // 모바일 대응: 페이지 이동 시 사이드바 자동 닫힘
   useEffect(() => {
     if (window.innerWidth < 1024) setIsSidebarOpen(false)
   }, [pathname])
@@ -41,80 +48,88 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body className="bg-[#f3f4f6] flex h-screen overflow-hidden font-sans text-slate-900">
         
-        {/* [왼쪽] 소프트 레이어드 사이드바 */}
+        {/* [왼쪽] 확정된 5대 메뉴 사이드바 */}
         <aside className={`
           ${isSidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full lg:w-0'} 
-          fixed lg:relative z-50 h-full bg-[#f8fafc] border-r border-slate-200 transition-all duration-300 ease-in-out flex flex-col
+          fixed lg:relative z-50 h-full bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex flex-col
         `}>
-          <div className="h-20 flex items-center px-8 border-b border-slate-100 flex-shrink-0">
-            <span className="text-2xl font-black text-slate-800 tracking-tighter">DONGWON</span>
+          <div className="h-20 flex items-center px-10 border-b border-slate-50 flex-shrink-0">
+            <span className="text-2xl font-black text-blue-600 tracking-tighter italic">DONGWON</span>
           </div>
           
           <nav className="flex-1 overflow-y-auto p-6 space-y-2">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-4">Workspace</p>
-            <MenuLink href="/" icon={<LayoutDashboard size={22}/>} label="대시보드" active={pathname === '/'} />
-            <MenuLink href="/approvals" icon={<FileCheck size={22}/>} label="전자결재" active={pathname.includes('approvals')} />
-            <MenuLink href="/calendar" icon={<Calendar size={22}/>} label="일정관리" />
-            <MenuLink href="/board" icon={<MessageSquare size={22}/>} label="전사게시판" />
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-4">Main Menu</p>
             
-            <div className="pt-8 space-y-2">
-               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-4">Organization</p>
-               <MenuLink href="/members" icon={<Users size={22}/>} label="임직원 관리" />
-               <MenuLink href="/settings" icon={<Settings size={22}/>} label="시스템 설정" />
+            <MenuLink href="/" icon={<LayoutDashboard size={22}/>} label="대시보드" active={pathname === '/'} />
+            <MenuLink href="/field" icon={<HardHat size={22}/>} label="현장관제" active={pathname.includes('field')} />
+            <MenuLink href="/approval" icon={<FileCheck2 size={22}/>} label="업무결재" active={pathname.includes('approval')} />
+            <MenuLink href="/hr" icon={<Users2 size={22}/>} label="인사관리" active={pathname.includes('hr')} />
+            
+            <div className="pt-10 space-y-2">
+               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-4">Admin</p>
+               <MenuLink href="/settings" icon={<Settings2 size={22}/>} label="시스템 설정" active={pathname.includes('settings')} />
             </div>
           </nav>
 
-          <div className="p-6 bg-slate-50 border-t border-slate-200">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center font-bold text-slate-600">
-                {userName[0]?.toUpperCase()}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-bold text-slate-800 truncate">{userName} 대표님</p>
-                <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} className="text-xs text-slate-400 hover:text-red-500 font-medium">로그아웃</button>
-              </div>
-            </div>
+          <div className="p-6 bg-slate-50 border-t border-slate-100">
+            <button 
+              onClick={() => supabase.auth.signOut().then(() => router.push('/login'))}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-red-500 transition-colors font-bold text-sm"
+            >
+              <LogOut size={18} /> 로그아웃
+            </button>
           </div>
         </aside>
 
         {/* [오른쪽] 메인 영역 */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
           
-          {/* 상단 헤더 */}
-          <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-6 lg:px-10 flex-shrink-0">
-            <div className="flex items-center gap-4">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+          {/* 통합 헤더 */}
+          <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-slate-200 flex-shrink-0 z-10">
+            <div className="flex items-center gap-6">
+              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
                 <Menu size={24} className="text-slate-600" />
               </button>
-              <div className="h-6 w-[1px] bg-slate-200 mx-2 hidden sm:block" />
-              <h2 className="text-lg font-bold text-slate-800 hidden sm:block">
-                {pathname === '/' ? '오피스 홈' : '전자결재 시스템'}
+              <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">
+                {pathname === '/' ? '대시보드' : 
+                 pathname.includes('field') ? '현장관제 시스템' : 
+                 pathname.includes('approval') ? '업무결재 센터' : 
+                 pathname.includes('hr') ? '인사 정보 관리' : '시스템 설정'}
               </h2>
             </div>
-            
-            <div className="flex items-center gap-4 lg:gap-6">
-              <div className="relative hidden md:block group">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="검색..." className="bg-slate-100 border-none rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500/20 w-48 lg:w-64" />
+
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-2xl border border-slate-200/50">
+                <Search size={16} className="text-slate-400" />
+                <input type="text" placeholder="빠른 검색..." className="bg-transparent border-none text-sm focus:outline-none w-48" />
               </div>
-              <button className="relative p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                <Bell size={24} />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-              </button>
+              
+              <div className="flex items-center gap-4 pl-4 border-l border-slate-100 ml-2">
+                <button className="relative p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                  <Bell size={22} />
+                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                </button>
+                <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-[11px] text-white font-bold shadow-md shadow-blue-200">
+                    {userName[0]?.toUpperCase()}
+                  </div>
+                  <span className="text-sm font-bold text-slate-700 hidden sm:inline">{userName} 대표님</span>
+                </div>
+              </div>
             </div>
           </header>
 
-          {/* [핵심] 본문 콘텐츠 - 꽉 차게 설정 */}
-          <main className="flex-1 overflow-y-auto p-6 lg:p-10">
-            <div className="w-full h-full">
+          {/* 본문 콘텐츠 */}
+          <main className="flex-1 overflow-y-auto p-8 lg:p-12">
+            <div className="w-full max-w-[1600px] mx-auto">
               {children}
             </div>
           </main>
         </div>
 
-        {/* 모바일에서 사이드바 열렸을 때 배경 어둡게 */}
+        {/* 모바일 배경 처리 */}
         {isSidebarOpen && (
-          <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
+          <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
         )}
       </body>
     </html>
@@ -128,8 +143,8 @@ function MenuLink({ href, icon, label, active }: any) {
       onClick={() => router.push(href)}
       className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-200 ${
         active 
-        ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
-        : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+        ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' 
+        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
       }`}
     >
       <span className={`${active ? 'text-white' : 'text-slate-400'}`}>{icon}</span>
