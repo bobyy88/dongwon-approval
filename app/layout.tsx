@@ -113,7 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-[11px] text-white font-bold shadow-md shadow-blue-200">
                     {userName[0]?.toUpperCase()}
                   </div>
-                  <span className="text-sm font-bold text-slate-700 hidden sm:inline">{userName} 대표님</span>
+                  <span className="text-sm font-bold text-slate-700 hidden sm:inline">{userName} 님</span>
                 </div>
               </div>
             </div>
