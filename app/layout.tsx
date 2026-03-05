@@ -11,15 +11,13 @@ import {
   Users2, 
   Settings2, 
   LogOut, 
-  Menu, 
   ChevronRight,
   Bell,
   Search
-} from 'lucide-react'
+} from 'lucide-react' // Menu 아이콘 제거됨
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [userName, setUserName] = useState('')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
@@ -37,22 +35,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     checkUser()
   }, [pathname, router])
 
-  // 모바일 대응: 페이지 이동 시 사이드바 자동 닫힘
-  useEffect(() => {
-    if (window.innerWidth < 1024) setIsSidebarOpen(false)
-  }, [pathname])
-
   if (pathname === '/login') return <html lang="ko"><body>{children}</body></html>
 
   return (
     <html lang="ko">
-      <body className="bg-[#f3f4f6] flex h-screen overflow-hidden font-sans text-slate-900">
+      {/* print:h-auto print:overflow-visible 을 추가하여 인쇄 시 페이지가 잘리는 현상 방지 */}
+      <body className="bg-[#f3f4f6] flex h-screen overflow-hidden font-sans text-slate-900 print:h-auto print:overflow-visible print:bg-white">
         
-        {/* [왼쪽] 확정된 5대 메뉴 사이드바 */}
-        <aside className={`
-          ${isSidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full lg:w-0'} 
-          fixed lg:relative z-50 h-full bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex flex-col
-        `}>
+        {/* 🟩 [왼쪽] 확정된 5대 메뉴 사이드바 (완전 고정형, 인쇄 시 숨김) */}
+        <aside className="w-72 flex-shrink-0 h-full bg-white border-r border-slate-200 flex flex-col z-20 print:hidden">
           <div className="h-20 flex items-center px-10 border-b border-slate-50 flex-shrink-0">
             <span className="text-2xl font-black text-blue-600 tracking-tighter italic">DONGWON</span>
           </div>
@@ -71,7 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </nav>
 
-          <div className="p-6 bg-slate-50 border-t border-slate-100">
+          <div className="p-6 bg-slate-50 border-t border-slate-100 mt-auto">
             <button 
               onClick={() => supabase.auth.signOut().then(() => router.push('/login'))}
               className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-red-500 transition-colors font-bold text-sm"
@@ -81,15 +72,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </aside>
 
-        {/* [오른쪽] 메인 영역 */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
+        {/* ⬜ [오른쪽] 메인 영역 */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] print:block print:bg-white">
           
-          {/* 통합 헤더 */}
-          <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-slate-200 flex-shrink-0 z-10">
+          {/* 통합 헤더 (인쇄 시 숨김) */}
+          <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-slate-200 flex-shrink-0 z-10 print:hidden">
             <div className="flex items-center gap-6">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
-                <Menu size={24} className="text-slate-600" />
-              </button>
+              {/* 햄버거 메뉴 버튼 삭제됨 */}
               <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">
                 {pathname === '/' ? '대시보드' : 
                  pathname.includes('field') ? '현장관제 시스템' : 
@@ -120,17 +109,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </header>
 
           {/* 본문 콘텐츠 */}
-          <main className="flex-1 overflow-y-auto p-8 lg:p-12">
-            <div className="w-full max-w-[1600px] mx-auto">
+          <main className="flex-1 overflow-y-auto p-8 lg:p-12 print:p-0 print:overflow-visible">
+            <div className="w-full max-w-[1600px] mx-auto print:max-w-none">
               {children}
             </div>
           </main>
         </div>
-
-        {/* 모바일 배경 처리 */}
-        {isSidebarOpen && (
-          <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
-        )}
       </body>
     </html>
   )
