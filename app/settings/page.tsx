@@ -2,22 +2,26 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Shield, MapPin, Search, Settings, Mail, Save } from 'lucide-react'
+import { Shield, MapPin, Search, Settings, Mail, Save, Plus, Trash2, Building2 } from 'lucide-react'
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [profiles, setProfiles] = useState<any[]>([])
-  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set()) // 수정한 항목 추적용
+  const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set()) 
   
+  // 🏗️ 현장 관리용 상태
+  const [sites, setSites] = useState<any[]>([])
+  const [newSiteName, setNewSiteName] = useState('')
+
   // 접속자 권한 확인용
   const [currentUserRole, setCurrentUserRole] = useState<string>('staff')
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
-    checkUserAndFetchProfiles()
+    checkUserAndFetchData()
   }, [])
 
-  const checkUserAndFetchProfiles = async () => {
+  const checkUserAndFetchData = async () => {
     setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return;
@@ -25,26 +29,59 @@ export default function SettingsPage() {
     const myEmail = session.user.email || '';
     const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
     
-    // 👑 [백도어] 대표님 이메일 확인 및 master 강제 부여
+    // 👑 대표님 이메일 고정 (Master 권한 부여)
     let myRole = myProfile?.role || 'staff'
-    if (myEmail === 'bobyy88@naver.com') { // 👈 실제 대표님 이메일로 꼭 수정하세요!
+    if (myEmail === 'bobyy88@naver.com') { 
       myRole = 'master'
       await supabase.from('profiles').upsert({ id: session.user.id, email: myEmail, role: 'master' })
     }
     setCurrentUserRole(myRole)
 
-    // 관리자일 경우 직원 목록 불러오기
+    // 관리자일 경우 전체 직원 목록 및 공식 현장 목록 불러오기
     if (myRole === 'admin' || myRole === 'master') {
-      const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
-      if (!error && data) {
-        setProfiles(data)
-        setModifiedIds(new Set()) // 데이터 불러올 때 수정 기록 초기화
-      }
+      // 1. 직원 목록
+      const { data: profileData } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+      if (profileData) setProfiles(profileData)
+      
+      // 2. 현장 목록
+      const { data: siteData } = await supabase.from('sites').select('*').order('created_at', { ascending: true })
+      if (siteData) setSites(siteData)
+      
+      setModifiedIds(new Set())
     }
     setLoading(false)
   }
 
-  // 1. 입력값이 변할 때: 화면에만 먼저 보여주고, '수정됨(modified)' 상태로 표시
+  // --- 🏗️ 현장 관리 함수 ---
+  const handleAddSite = async () => {
+    if (!newSiteName.trim()) return alert('추가할 현장 이름을 입력해주세요.');
+    
+    // 중복 검사
+    if (sites.some(site => site.name === newSiteName.trim())) {
+      return alert('이미 등록된 현장 이름입니다.');
+    }
+
+    const { data, error } = await supabase.from('sites').insert([{ name: newSiteName.trim() }]).select()
+    if (error) {
+      alert(`현장 추가 실패: ${error.message}`)
+    } else if (data) {
+      setSites([...sites, data[0]])
+      setNewSiteName('')
+    }
+  }
+
+  const handleDeleteSite = async (id: string, name: string) => {
+    if (!confirm(`'${name}' 현장을 공식 목록에서 삭제하시겠습니까?\n(기존에 배정된 직원의 소속 정보는 그대로 유지됩니다)`)) return;
+    
+    const { error } = await supabase.from('sites').delete().eq('id', id)
+    if (error) {
+      alert(`현장 삭제 실패: ${error.message}`)
+    } else {
+      setSites(sites.filter(site => site.id !== id))
+    }
+  }
+
+  // --- 👥 직원 권한 관리 함수 ---
   const handleChange = (userId: string, field: 'role' | 'site_name' | 'name', value: string) => {
     setProfiles(prev => prev.map(p => p.id === userId ? { ...p, [field]: value } : p))
     setModifiedIds(prev => {
@@ -54,9 +91,8 @@ export default function SettingsPage() {
     })
   }
 
-  // 2. 저장하기 버튼(또는 엔터)을 눌렀을 때: 실제 DB에 반영
   const handleSave = async (userId: string) => {
-    if (!modifiedIds.has(userId)) return; // 수정된 게 없으면 작동 안 함
+    if (!modifiedIds.has(userId)) return; 
 
     const profileToSave = profiles.find(p => p.id === userId)
     if (!profileToSave) return;
@@ -70,7 +106,6 @@ export default function SettingsPage() {
     if (error) {
       alert(`저장 실패: ${error.message}`)
     } else {
-      // 저장 성공 시 '수정됨' 기록에서 삭제 (버튼이 '저장완료'로 바뀜)
       setModifiedIds(prev => {
         const newSet = new Set(prev)
         newSet.delete(userId)
@@ -79,14 +114,12 @@ export default function SettingsPage() {
     }
   }
 
-  // 검색 필터링
   const filteredProfiles = profiles.filter(p => 
     (p.name && p.name.includes(searchQuery)) || 
     (p.email && p.email.includes(searchQuery)) ||
     (p.site_name && p.site_name.includes(searchQuery))
   )
 
-  // 일반 직원 튕겨냄
   if (!loading && currentUserRole !== 'admin' && currentUserRole !== 'master') {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400 space-y-4 animate-in fade-in">
@@ -98,44 +131,96 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700 pb-20">
       
-      {/* 상단 타이틀 및 검색바 */}
+      {/* 상단 타이틀 */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
             <Settings className="text-slate-800" size={28}/> 
             시스템 권한 및 현장 설정
           </h2>
-          <p className="text-sm font-bold text-slate-400 mt-2">사용자의 시스템 접근 등급(권한)과 소속 현장을 통제합니다.</p>
-        </div>
-
-        <div className="flex items-center gap-2 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-200 w-full md:w-80 transition-all focus-within:ring-2 focus-within:ring-blue-500/20">
-          <Search size={20} className="text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="이름, 이메일, 현장명 검색" 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none text-sm font-bold focus:outline-none w-full"
-          />
+          <p className="text-sm font-bold text-slate-400 mt-2">공식 현장을 개설/폐쇄하고, 직원의 시스템 권한을 통제합니다.</p>
         </div>
       </div>
 
-      {/* 권한 관리 테이블 */}
+      {/* 🏗️ 1. 공식 현장 관리 구역 (새로 추가됨!) */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8 space-y-6">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+          <Building2 className="text-blue-600" size={24}/>
+          <h3 className="text-lg font-black text-slate-800">공식 현장 관리</h3>
+        </div>
+        
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* 새 현장 추가 폼 */}
+          <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 md:w-96">
+            <input 
+              type="text" 
+              value={newSiteName}
+              onChange={(e) => setNewSiteName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddSite()}
+              placeholder="새로운 현장 이름 (예: 강남 A공구)" 
+              className="bg-transparent border-none text-sm font-bold focus:outline-none w-full px-3 py-2"
+            />
+            <button 
+              onClick={handleAddSite}
+              className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <Plus size={18} />
+            </button>
+          </div>
+
+          {/* 등록된 현장 리스트 (배지 형태) */}
+          <div className="flex-1 flex flex-wrap gap-3 items-center">
+            {sites.map((site) => (
+              <div key={site.id} className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm group hover:border-blue-200 transition-all">
+                <span className="text-sm font-black text-slate-700">{site.name}</span>
+                <button 
+                  onClick={() => handleDeleteSite(site.id, site.name)}
+                  className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                  title="이 현장 삭제"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            {sites.length === 0 && (
+              <p className="text-sm font-bold text-slate-400">등록된 현장이 없습니다. 현장을 추가해주세요!</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 👥 2. 직원 권한 관리 테이블 */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
+        <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+            <Shield className="text-slate-800" size={20}/> 직원 계정 통제실
+          </h3>
+          <div className="flex items-center gap-2 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-200 w-full md:w-80">
+            <Search size={20} className="text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="이름, 이메일 검색" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none text-sm font-bold focus:outline-none w-full"
+            />
+          </div>
+        </div>
+
         {loading ? (
           <div className="p-20 text-center text-slate-400 font-bold">시스템 데이터를 불러오는 중입니다...</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase tracking-widest text-slate-400">
-                  <th className="p-6 font-black rounded-tl-[2.5rem]">계정 정보 (이름/이메일)</th>
+                <tr className="bg-slate-50 border-y border-slate-100 text-[11px] uppercase tracking-widest text-slate-400">
+                  <th className="p-6 font-black pl-8">계정 정보 (이름/이메일)</th>
                   <th className="p-6 font-black w-40">시스템 권한 (등급)</th>
-                  <th className="p-6 font-black w-48">소속 현장 배정</th>
+                  <th className="p-6 font-black w-56">소속 현장 배정</th>
                   <th className="p-6 font-black w-28 text-center">가입일자</th>
-                  <th className="p-6 font-black w-32 text-center rounded-tr-[2.5rem]">관리 액션</th>
+                  <th className="p-6 font-black w-32 text-center pr-8">관리 액션</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -143,7 +228,7 @@ export default function SettingsPage() {
                   <tr key={profile.id} className="hover:bg-slate-50/50 transition-colors group">
                     
                     {/* 1. 직원 정보 */}
-                    <td className="p-6">
+                    <td className="p-6 pl-8">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm border border-slate-200">
                           {profile.name ? profile.name[0] : 'U'}
@@ -154,7 +239,7 @@ export default function SettingsPage() {
                             value={profile.name || ''} 
                             placeholder="실명 입력"
                             onChange={(e) => handleChange(profile.id, 'name', e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSave(profile.id)} // 엔터 치면 저장
+                            onKeyDown={(e) => e.key === 'Enter' && handleSave(profile.id)} 
                             className="font-black text-slate-800 bg-transparent border-none focus:ring-2 focus:ring-slate-200 rounded-lg px-2 py-1 w-full outline-none"
                           />
                           <div className="flex items-center gap-1.5 px-2 mt-1">
@@ -189,18 +274,24 @@ export default function SettingsPage() {
                       </div>
                     </td>
 
-                    {/* 3. 소속 현장 */}
+                    {/* 3. 소속 현장 (✅ 타자 입력 ➡️ 객관식 드롭다운으로 변경!) */}
                     <td className="p-6">
                       <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-2 border border-slate-200 focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100 transition-all">
                         <MapPin size={16} className="text-slate-400" />
-                        <input 
-                          type="text" 
-                          value={profile.site_name || ''} 
-                          placeholder="소속 현장명"
+                        <select
+                          value={profile.site_name || ''}
                           onChange={(e) => handleChange(profile.id, 'site_name', e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSave(profile.id)} // 엔터 치면 저장
-                          className="w-full bg-transparent border-none focus:outline-none text-sm font-bold text-slate-700"
-                        />
+                          className="w-full bg-transparent border-none focus:outline-none text-sm font-bold text-slate-700 cursor-pointer appearance-none"
+                        >
+                          <option value="" disabled>-- 현장 배정 --</option>
+                          {sites.map((site) => (
+                            <option key={site.id} value={site.name}>{site.name}</option>
+                          ))}
+                          {/* 💡 과거에 오타로 입력된 '미등록 현장'을 살려주는 안전장치 */}
+                          {profile.site_name && !sites.find(s => s.name === profile.site_name) && (
+                            <option value={profile.site_name}>{profile.site_name} (미등록)</option>
+                          )}
+                        </select>
                       </div>
                     </td>
 
@@ -209,24 +300,18 @@ export default function SettingsPage() {
                       {new Date(profile.created_at).toLocaleDateString()}
                     </td>
 
-                    {/* 5. ✅ 저장하기 버튼 */}
-                    <td className="p-6 text-center">
+                    {/* 5. 저장하기 버튼 */}
+                    <td className="p-6 text-center pr-8">
                       <button 
                         onClick={() => handleSave(profile.id)}
-                        disabled={!modifiedIds.has(profile.id)} // 수정된 게 없으면 버튼 비활성화
+                        disabled={!modifiedIds.has(profile.id)}
                         className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all ${
                           modifiedIds.has(profile.id) 
-                            ? 'bg-slate-800 text-white shadow-lg shadow-slate-200 active:scale-95 hover:bg-slate-700' // 수정 중: 진한 활성화
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed' // 저장 완료: 옅은 비활성화
+                            ? 'bg-slate-800 text-white shadow-lg shadow-slate-200 active:scale-95 hover:bg-slate-700'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                       >
-                        {modifiedIds.has(profile.id) ? (
-                          <>
-                            <Save size={14} /> 저장하기
-                          </>
-                        ) : (
-                          '저장완료'
-                        )}
+                        {modifiedIds.has(profile.id) ? <><Save size={14} /> 저장하기</> : '저장완료'}
                       </button>
                     </td>
 
