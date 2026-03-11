@@ -9,12 +9,10 @@ export default function SettingsPage() {
   const [profiles, setProfiles] = useState<any[]>([])
   const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set()) 
   
-  // 🏗️ 현장 관리용 상태
   const [sites, setSites] = useState<any[]>([])
   const [newSiteName, setNewSiteName] = useState('')
 
-  // 접속자 권한 확인용
-  const [currentUserRole, setCurrentUserRole] = useState<string>('staff')
+  const [currentUserRole, setCurrentUserRole] = useState<string>('pending')
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -30,7 +28,7 @@ export default function SettingsPage() {
     const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
     
     // 👑 대표님 이메일 고정
-    let myRole = myProfile?.role || 'staff'
+    let myRole = myProfile?.role || 'pending'
     if (myEmail === 'bobyy88@naver.com') { 
       myRole = 'master'
       await supabase.from('profiles').upsert({ id: session.user.id, email: myEmail, role: 'master' })
@@ -49,7 +47,6 @@ export default function SettingsPage() {
     setLoading(false)
   }
 
-  // --- 🏗️ 현장 관리 함수 ---
   const handleAddSite = async () => {
     if (!newSiteName.trim()) return alert('추가할 현장 이름을 입력해주세요.');
     if (sites.some(site => site.name === newSiteName.trim())) return alert('이미 등록된 현장 이름입니다.');
@@ -70,7 +67,6 @@ export default function SettingsPage() {
     else setSites(sites.filter(site => site.id !== id))
   }
 
-  // --- 👥 직원 권한 관리 함수 ---
   const handleChange = (userId: string, field: 'role' | 'site_name' | 'name', value: string) => {
     setProfiles(prev => prev.map(p => p.id === userId ? { ...p, [field]: value } : p))
     setModifiedIds(prev => new Set(prev).add(userId))
@@ -87,6 +83,7 @@ export default function SettingsPage() {
     
     if (error) alert(`저장 실패: ${error.message}`)
     else {
+      alert('권한이 정상적으로 수정/승인되었습니다.')
       setModifiedIds(prev => {
         const newSet = new Set(prev)
         newSet.delete(userId)
@@ -113,30 +110,23 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-[1600px] w-full mx-auto space-y-8 px-4 sm:px-6 lg:px-8 animate-in fade-in duration-700 pb-20 pt-6 relative">
-      
-      {/* 🚀 상단 타이틀 */}
       <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
             <Settings className="text-slate-800" size={28}/> 
             시스템 권한 및 현장 설정
           </h2>
-          {/* 부제목 글씨 크기도 text-base 로 상향 */}
-          <p className="text-base font-bold text-slate-400 mt-2">공식 현장을 개설/폐쇄하고, 직원의 시스템 권한을 통제합니다.</p>
+          <p className="text-base font-bold text-slate-400 mt-2">공식 현장을 개설/폐쇄하고, 직원의 가입 승인 및 시스템 권한을 통제합니다.</p>
         </div>
       </div>
 
-      {/* 🏗️ 1. 공식 현장 관리 구역 */}
       <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 space-y-6">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <Building2 className="text-blue-600" size={24}/>
-          {/* 섹션 타이틀 text-xl 로 상향 */}
           <h3 className="text-xl font-black text-slate-800">공식 현장 관리</h3>
         </div>
-        
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 md:w-[450px]">
-            {/* 입력창 text-base 로 상향 */}
             <input 
               type="text" value={newSiteName} onChange={(e) => setNewSiteName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddSite()}
               placeholder="새로운 현장 이름 (예: 강남 A공구)" 
@@ -146,11 +136,9 @@ export default function SettingsPage() {
               <Plus size={20} />
             </button>
           </div>
-
           <div className="flex-1 flex flex-wrap gap-3 items-center">
             {sites.map((site) => (
               <div key={site.id} className="flex items-center gap-2 bg-white border border-slate-200 px-5 py-3 rounded-xl shadow-sm group hover:border-blue-300 transition-all">
-                {/* 뱃지 텍스트 text-base 로 상향 */}
                 <span className="text-base font-black text-slate-700">{site.name}</span>
                 <button onClick={() => handleDeleteSite(site.id, site.name)} className="text-slate-300 hover:text-red-500 transition-colors p-1 ml-1" title="이 현장 삭제">
                   <Trash2 size={16} />
@@ -162,11 +150,10 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 👥 2. 직원 권한 관리 테이블 */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden min-h-[500px]">
         <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">
-            <Shield className="text-slate-800" size={24}/> 직원 계정 통제실
+            <Shield className="text-slate-800" size={24}/> 직원 가입 승인 및 계정 통제실
           </h3>
           <div className="flex items-center gap-3 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-200 w-full md:w-96">
             <Search size={20} className="text-slate-400" />
@@ -183,7 +170,6 @@ export default function SettingsPage() {
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
-                {/* 헤더 글씨 text-[13px] 로 상향 및 패딩 증가 */}
                 <tr className="bg-slate-50 border-y border-slate-100 text-[13px] uppercase tracking-widest text-slate-500">
                   <th className="py-5 px-8 font-black">계정 정보 (이름/이메일)</th>
                   <th className="py-5 px-6 font-black w-48">시스템 권한 (등급)</th>
@@ -194,48 +180,48 @@ export default function SettingsPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredProfiles.map((profile) => (
-                  <tr key={profile.id} className="hover:bg-slate-50/50 transition-colors group">
+                  // ✅ 승인 대기자(pending)는 노란색 배경으로 눈에 띄게 강조!
+                  <tr key={profile.id} className={`transition-colors group ${profile.role === 'pending' ? 'bg-amber-50/50 hover:bg-amber-100/50' : 'hover:bg-slate-50/50'}`}>
                     
-                    {/* 1. 직원 정보 */}
                     <td className="py-5 px-8">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white text-blue-600 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm border border-slate-200 flex-shrink-0">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm border flex-shrink-0 ${profile.role === 'pending' ? 'bg-amber-100 text-amber-600 border-amber-200' : 'bg-white text-blue-600 border-slate-200'}`}>
                           {profile.name ? profile.name[0] : 'U'}
                         </div>
                         <div className="flex-1">
-                          {/* 이름 입력창 text-base 로 상향 */}
                           <input 
                             type="text" value={profile.name || ''} placeholder="실명 입력"
                             onChange={(e) => handleChange(profile.id, 'name', e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSave(profile.id)} 
-                            className="font-black text-lg text-slate-800 bg-transparent border-none focus:ring-2 focus:ring-blue-100 rounded-xl px-3 py-1.5 w-full outline-none transition-all"
+                            className={`font-black text-lg text-slate-800 bg-transparent border-none focus:ring-2 focus:ring-blue-100 rounded-xl px-3 py-1.5 w-full outline-none transition-all ${profile.role === 'pending' && 'text-amber-900'}`}
                           />
                           <div className="flex items-center gap-1.5 px-3 mt-1">
-                            <Mail size={14} className="text-slate-400"/>
-                            {/* 이메일 텍스트 text-[13px] 로 상향 */}
-                            <span className="text-[13px] font-bold text-slate-500">{profile.email}</span>
+                            <Mail size={14} className={profile.role === 'pending' ? 'text-amber-500' : 'text-slate-400'}/>
+                            <span className={`text-[13px] font-bold ${profile.role === 'pending' ? 'text-amber-600' : 'text-slate-500'}`}>{profile.email}</span>
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* 2. 시스템 권한 */}
                     <td className="py-5 px-6">
                       <div className="flex items-center gap-2">
                         <Shield size={18} className={
                           profile.role === 'master' ? 'text-purple-500' :
                           profile.role === 'admin' ? 'text-emerald-500' : 
-                          profile.role === 'manager' ? 'text-blue-500' : 'text-slate-400'
+                          profile.role === 'manager' ? 'text-blue-500' : 
+                          profile.role === 'pending' ? 'text-orange-500' : 'text-slate-400'
                         } />
-                        {/* 권한 셀렉트 text-base 로 상향 */}
                         <select 
-                          value={profile.role || 'staff'} 
+                          value={profile.role || 'pending'} 
                           onChange={(e) => handleChange(profile.id, 'role', e.target.value)}
                           disabled={currentUserRole !== 'master' && profile.role === 'master'} 
-                          className={`font-black text-base border-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 cursor-pointer outline-none focus:ring-2 focus:ring-blue-100 transition-all ${
-                            profile.role === 'master' ? 'text-purple-700 bg-purple-50 border-purple-200' : 'text-slate-700'
-                          }`}
+                          className={`font-black text-base border-none rounded-xl px-4 py-2.5 cursor-pointer outline-none transition-all 
+                            ${profile.role === 'master' ? 'text-purple-700 bg-purple-50 border border-purple-200' : 
+                              profile.role === 'pending' ? 'text-orange-600 bg-orange-100 border border-orange-200 ring-2 ring-orange-400/20' : 
+                              'bg-slate-50 border border-slate-200 text-slate-700 focus:ring-2 focus:ring-blue-100'}`}
                         >
+                          {/* ✅ 승인 대기 항목 추가! */}
+                          <option value="pending">승인 대기 🔒</option>
                           <option value="staff">일반 근로자</option>
                           <option value="manager">현장 소장</option>
                           <option value="admin">본사 관리자</option>
@@ -244,11 +230,9 @@ export default function SettingsPage() {
                       </div>
                     </td>
 
-                    {/* 3. 소속 현장 */}
                     <td className="py-5 px-6">
-                      <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-50 transition-all">
-                        <MapPin size={18} className="text-blue-400" />
-                        {/* 현장 셀렉트 text-base 로 상향 */}
+                      <div className={`flex items-center gap-3 rounded-xl px-4 py-2.5 border transition-all ${profile.role === 'pending' ? 'bg-amber-100/50 border-amber-200 focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-100' : 'bg-slate-50 border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-50'}`}>
+                        <MapPin size={18} className={profile.role === 'pending' ? 'text-amber-500' : 'text-blue-400'} />
                         <select
                           value={profile.site_name || ''}
                           onChange={(e) => handleChange(profile.id, 'site_name', e.target.value)}
@@ -265,25 +249,21 @@ export default function SettingsPage() {
                       </div>
                     </td>
 
-                    {/* 4. 가입일자 */}
-                    {/* 날짜 텍스트 text-[13px] 로 상향 */}
-                    <td className="py-5 px-6 text-center text-[13px] font-bold text-slate-400">
+                    <td className={`py-5 px-6 text-center text-[13px] font-bold ${profile.role === 'pending' ? 'text-amber-500' : 'text-slate-400'}`}>
                       {new Date(profile.created_at).toLocaleDateString()}
                     </td>
 
-                    {/* 5. 저장하기 버튼 */}
                     <td className="py-5 px-8 text-center">
                       <button 
                         onClick={() => handleSave(profile.id)}
                         disabled={!modifiedIds.has(profile.id)}
-                        // 버튼 텍스트 text-sm 으로 상향 및 패딩 증가
                         className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-black text-sm transition-all ${
                           modifiedIds.has(profile.id) 
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 active:scale-95 hover:bg-blue-700'
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : profile.role === 'pending' ? 'bg-amber-100 text-amber-400 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                       >
-                        {modifiedIds.has(profile.id) ? <><Save size={16} /> 저장하기</> : '저장완료'}
+                        {modifiedIds.has(profile.id) ? <><Save size={16} /> 저장(승인)</> : '저장완료'}
                       </button>
                     </td>
 

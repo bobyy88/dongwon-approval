@@ -65,7 +65,7 @@ export default function DashboardPage() {
       
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       
-      let currentRole = profile?.role || 'staff'
+      let currentRole = profile?.role || 'pending'
       let currentSite = profile?.site_name || '미배정'
       let currentName = profile?.name || '이름없음'
 
@@ -78,11 +78,14 @@ export default function DashboardPage() {
       setUserSite(currentSite)
       setUserName(currentName)
 
-      fetchNotices()
-      fetchMemos(currentRole, currentSite)
-      fetchVacations(currentRole, currentSite, new Date())
-      fetchEvents(currentRole, currentSite, new Date())
-      fetchPendingCount(currentRole, currentSite, email)
+      // 승인 대기자가 아닐 때만 데이터 불러오기
+      if (currentRole !== 'pending') {
+        fetchNotices()
+        fetchMemos(currentRole, currentSite)
+        fetchVacations(currentRole, currentSite, new Date())
+        fetchEvents(currentRole, currentSite, new Date())
+        fetchPendingCount(currentRole, currentSite, email)
+      }
     }
     setLoading(false)
   }
@@ -170,7 +173,6 @@ export default function DashboardPage() {
     fetchMemos(userRole, userSite)
   }
 
-  // ✅ [수기 일정] 클릭 액션
   const openNewEventModal = (dateStr: string) => {
     if (!(userRole === 'manager' || userRole === 'admin' || userRole === 'master')) return;
     setEditEventId(null)
@@ -210,14 +212,12 @@ export default function DashboardPage() {
     fetchEvents(userRole, userSite, currentDate)
   }
 
-  // ✅ [휴가 일정] 클릭 액션
   const openVacationModal = (e: React.MouseEvent, vac: any) => {
     e.stopPropagation();
     setSelectedVacation(vac);
     setShowVacationModal(true);
   }
 
-  // [공지사항] 팝업 제어
   const openWriteNotice = () => {
     setNoticeViewMode(false)
     setNewNoticeTitle('')
@@ -231,7 +231,6 @@ export default function DashboardPage() {
     setShowNoticeModal(true)
   }
 
-  // --- [달력 렌더링용 로직] ---
   const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
   const getFirstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   
@@ -246,10 +245,48 @@ export default function DashboardPage() {
 
   const canEditEvent = userRole === 'master' || userRole === 'admin' || userRole === 'manager';
 
+
+  // =========================================================================
+  // 🚨 렌더링 시작 (Early Return 패턴으로 깔끔하게 정리!)
+  // =========================================================================
+
+  // 1. 로딩 중 화면
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="p-20 text-center text-slate-400 font-bold text-lg">데이터를 불러오는 중입니다...</div>
+      </div>
+    )
+  }
+
+  // 2. 🔒 승인 대기자 원천 차단 화면 (대시보드 봉쇄)
+  if (userRole === 'pending') {
+    return (
+      <div className="max-w-[1600px] w-full mx-auto px-4 py-20 animate-in fade-in zoom-in-95 flex items-center justify-center min-h-[80vh]">
+        <div className="max-w-2xl w-full bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl p-16 text-center flex flex-col items-center">
+          <div className="w-28 h-28 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mb-8 shadow-inner border border-orange-100">
+            <ShieldAlert size={56} />
+          </div>
+          <h2 className="text-3xl font-black text-slate-800 mb-4">관리자 승인 대기 중입니다</h2>
+          <p className="text-base font-bold text-slate-500 mb-10 leading-relaxed bg-slate-50 p-8 rounded-2xl border border-slate-100">
+            성공적으로 회원가입이 완료되었습니다.<br/><br/>
+            현재 회원님의 계정은 <span className="text-orange-600 bg-orange-100 px-2 py-1 rounded-md">승인 대기 (Pending)</span> 상태입니다.<br/>
+            대표님 또는 본사 관리자의 <strong className="text-slate-700">승인 및 현장 배정</strong>이 완료된 후<br/>
+            시스템의 모든 기능을 정상적으로 이용하실 수 있습니다.
+          </p>
+          <button onClick={() => window.location.reload()} className="bg-slate-800 text-white font-black text-lg px-10 py-5 rounded-2xl hover:bg-slate-700 transition-colors shadow-lg flex items-center gap-3">
+            승인 확인 새로고침
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // 3. 정상 승인된 사용자의 메인 대시보드 화면
   return (
     <div className="max-w-[1600px] w-full mx-auto space-y-8 px-4 sm:px-6 lg:px-8 animate-in fade-in duration-700 pb-20 pt-6 relative">
       
-      {/* 🚀 상단 배너 (글씨 크기 및 여백 시원하게!) */}
+      {/* 🚀 상단 배너 */}
       <div className="bg-blue-50 rounded-[2rem] border border-blue-100 shadow-sm py-6 px-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-5">
           <div className="w-14 h-14 bg-white text-blue-600 rounded-full flex items-center justify-center font-black text-2xl border border-blue-200 shadow-sm">
@@ -272,212 +309,202 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="p-20 text-center text-slate-400 font-bold text-lg">대시보드 데이터를 불러오는 중입니다...</div>
-      ) : (
-        <>
-          {/* 🚀 4개의 핵심 요약 카드 (숫자는 더 크고 시원하게!) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
-              <div>
-                <p className="text-[13px] font-bold text-slate-400 mb-2">나의 결재 대기 건수</p>
-                <p className="text-4xl font-black text-orange-500">{pendingCount} <span className="text-base font-bold text-slate-500">건</span></p>
-              </div>
-              <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center text-orange-400"><Clock size={24}/></div>
-            </div>
-            <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
-              <div>
-                <p className="text-[13px] font-bold text-slate-400 mb-2">현재 소속 현장</p>
-                <p className="text-3xl font-black text-blue-600 truncate max-w-[150px]">{userSite}</p>
-              </div>
-              <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-400"><Building2 size={24}/></div>
-            </div>
-            <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
-              <div>
-                <p className="text-[13px] font-bold text-slate-400 mb-2">등록된 전체 메모</p>
-                <p className="text-4xl font-black text-emerald-500">{memos.length} <span className="text-base font-bold text-slate-500">건</span></p>
-              </div>
-              <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-400"><MessageSquare size={24}/></div>
-            </div>
-            <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
-              <div>
-                <p className="text-[13px] font-bold text-slate-400 mb-2">이달의 승인 휴가</p>
-                <p className="text-4xl font-black text-purple-500">{approvedVacations.length} <span className="text-base font-bold text-slate-500">건</span></p>
-              </div>
-              <div className="w-14 h-14 rounded-full bg-purple-50 flex items-center justify-center text-purple-400"><CalendarCheck size={24}/></div>
-            </div>
+      {/* 🚀 4개의 핵심 요약 카드 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-[13px] font-bold text-slate-400 mb-2">나의 결재 대기 건수</p>
+            <p className="text-4xl font-black text-orange-500">{pendingCount} <span className="text-base font-bold text-slate-500">건</span></p>
           </div>
+          <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center text-orange-400"><Clock size={24}/></div>
+        </div>
+        <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-[13px] font-bold text-slate-400 mb-2">현재 소속 현장</p>
+            <p className="text-3xl font-black text-blue-600 truncate max-w-[150px]">{userSite}</p>
+          </div>
+          <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-400"><Building2 size={24}/></div>
+        </div>
+        <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-[13px] font-bold text-slate-400 mb-2">등록된 전체 메모</p>
+            <p className="text-4xl font-black text-emerald-500">{memos.length} <span className="text-base font-bold text-slate-500">건</span></p>
+          </div>
+          <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-400"><MessageSquare size={24}/></div>
+        </div>
+        <div className="bg-white rounded-[2rem] border border-slate-200 p-8 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-[13px] font-bold text-slate-400 mb-2">이달의 승인 휴가</p>
+            <p className="text-4xl font-black text-purple-500">{approvedVacations.length} <span className="text-base font-bold text-slate-500">건</span></p>
+          </div>
+          <div className="w-14 h-14 rounded-full bg-purple-50 flex items-center justify-center text-purple-400"><CalendarCheck size={24}/></div>
+        </div>
+      </div>
 
-          {/* 🚀 중앙: 공지사항 / 현장 메모 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            {/* 📢 좌측: 본사 공지사항 */}
-            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 flex flex-col h-[420px]">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><Bell size={20} className="fill-red-500/20"/></div>
-                  <h3 className="text-xl font-black text-slate-800">본사 공지사항</h3>
-                </div>
-                {(userRole === 'master' || userRole === 'admin') && (
-                  <button onClick={openWriteNotice} className="text-[13px] bg-slate-800 text-white font-black px-5 py-2.5 rounded-xl hover:bg-slate-700 transition-colors shadow-sm">
-                    + 새 공지 작성
-                  </button>
-                )}
-              </div>
-              
-              <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl bg-white">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 sticky top-0 z-10">
-                    <tr className="text-[13px] text-slate-500 uppercase tracking-widest border-b border-slate-100">
-                      <th className="py-3 px-5 font-black">공지 제목</th>
-                      <th className="py-3 px-4 font-black w-24 text-center">작성자</th>
-                      <th className="py-3 px-4 font-black w-28 text-center">등록일</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 text-base">
-                    {notices.map((notice) => (
-                      <tr key={notice.id} onClick={() => openReadNotice(notice)} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
-                        <td className="py-4 px-5 font-bold text-slate-700 flex items-center">
-                          <span className="text-red-500 text-[11px] bg-red-50 px-2 py-1 rounded-md mr-3 border border-red-100 flex-shrink-0">공지</span>
-                          <span className="truncate max-w-[250px] group-hover:text-blue-600 transition-colors">{notice.title}</span>
-                          {(userRole === 'master' || userRole === 'admin') && (
-                            <button onClick={(e) => { e.stopPropagation(); handleDeleteNotice(notice.id); }} className="ml-3 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                          )}
-                        </td>
-                        <td className="py-4 px-4 text-center text-[13px] font-bold text-slate-500">{notice.author_name}</td>
-                        <td className="py-4 px-4 text-center text-[13px] font-bold text-slate-400">{new Date(notice.created_at).toLocaleDateString().slice(2)}</td>
-                      </tr>
-                    ))}
-                    {notices.length === 0 && <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-sm font-bold">공지사항이 없습니다.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
+      {/* 🚀 중앙: 공지사항 / 현장 메모 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* 📢 좌측: 본사 공지사항 */}
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 flex flex-col h-[420px]">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><Bell size={20} className="fill-red-500/20"/></div>
+              <h3 className="text-xl font-black text-slate-800">본사 공지사항</h3>
             </div>
-
-            {/* 📝 우측: 현장 메모 & 인수인계 Feed */}
-            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 flex flex-col h-[420px]">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center"><MessageSquare size={20} className="fill-emerald-500/20"/></div>
-                  <h3 className="text-xl font-black text-slate-800">현장 메모 & 소통</h3>
-                </div>
-                {(userRole === 'master' || userRole === 'admin') && <span className="text-[11px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg">전체 현장 열람</span>}
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4 pr-3 mb-4 custom-scrollbar">
-                {memos.map(memo => (
-                  <div key={memo.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-colors relative group shadow-sm">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[11px] font-black bg-white border border-slate-200 px-2 py-1 rounded-md text-slate-600 shadow-sm">{memo.site_name}</span>
-                        <span className="text-[13px] font-black text-slate-800">{memo.author_name}</span>
-                      </div>
-                      {(userRole === 'master' || userRole === 'admin' || userEmail === memo.author_email) && (
-                        <button onClick={() => handleDeleteMemo(memo.id, memo.author_email)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+            {(userRole === 'master' || userRole === 'admin') && (
+              <button onClick={openWriteNotice} className="text-[13px] bg-slate-800 text-white font-black px-5 py-2.5 rounded-xl hover:bg-slate-700 transition-colors shadow-sm">
+                + 새 공지 작성
+              </button>
+            )}
+          </div>
+          
+          <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl bg-white">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr className="text-[13px] text-slate-500 uppercase tracking-widest border-b border-slate-100">
+                  <th className="py-3 px-5 font-black">공지 제목</th>
+                  <th className="py-3 px-4 font-black w-24 text-center">작성자</th>
+                  <th className="py-3 px-4 font-black w-28 text-center">등록일</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 text-base">
+                {notices.map((notice) => (
+                  <tr key={notice.id} onClick={() => openReadNotice(notice)} className="hover:bg-slate-50/80 transition-colors group cursor-pointer">
+                    <td className="py-4 px-5 font-bold text-slate-700 flex items-center">
+                      <span className="text-red-500 text-[11px] bg-red-50 px-2 py-1 rounded-md mr-3 border border-red-100 flex-shrink-0">공지</span>
+                      <span className="truncate max-w-[250px] group-hover:text-blue-600 transition-colors">{notice.title}</span>
+                      {(userRole === 'master' || userRole === 'admin') && (
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteNotice(notice.id); }} className="ml-3 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                       )}
-                    </div>
-                    {/* ✅ 메모 내용 글씨 크기 text-base(16px) 로 시원하게 확대! */}
-                    <p className="text-base font-bold text-slate-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
-                  </div>
+                    </td>
+                    <td className="py-4 px-4 text-center text-[13px] font-bold text-slate-500">{notice.author_name}</td>
+                    <td className="py-4 px-4 text-center text-[13px] font-bold text-slate-400">{new Date(notice.created_at).toLocaleDateString().slice(2)}</td>
+                  </tr>
                 ))}
-                {memos.length === 0 && <p className="w-full text-center text-slate-400 text-sm font-bold py-10">첫 현장 메모를 남겨보세요!</p>}
-              </div>
+                {notices.length === 0 && <tr><td colSpan={3} className="py-10 text-center text-slate-400 text-sm font-bold">공지사항이 없습니다.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-              <div className="flex gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-inner mt-auto flex-shrink-0">
-                <input type="text" value={newMemoContent} onChange={e => setNewMemoContent(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddMemo()} placeholder="메모 남기기 (엔터 전송)" className="flex-1 bg-transparent border-none px-4 text-base font-bold focus:outline-none text-slate-700" />
-                <button onClick={handleAddMemo} className="bg-emerald-500 text-white px-5 py-3 rounded-xl font-black hover:bg-emerald-600 transition-colors shadow-md flex items-center gap-2">
-                  <Send size={18}/>
-                </button>
-              </div>
+        {/* 📝 우측: 현장 메모 & 인수인계 Feed */}
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 flex flex-col h-[420px]">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center"><MessageSquare size={20} className="fill-emerald-500/20"/></div>
+              <h3 className="text-xl font-black text-slate-800">현장 메모 & 소통</h3>
             </div>
+            {(userRole === 'master' || userRole === 'admin') && <span className="text-[11px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg">전체 현장 열람</span>}
           </div>
 
-          {/* 🗓️ 하단: 대형 캘린더 (가로 100% 전체 사용) */}
-          <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8 flex flex-col min-h-[750px] w-full relative">
-            <div className="flex items-center justify-between mb-8 pb-5 border-b border-slate-100">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><CalendarIcon size={24}/></div>
-                <h3 className="text-2xl font-black text-slate-800">현장 휴가 & 주요 일정 캘린더</h3>
-                {(userRole === 'master' || userRole === 'admin') && <span className="text-[11px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg ml-2">전체 현장</span>}
-                {canEditEvent && <span className="text-[13px] font-bold text-emerald-600 ml-3 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">💡 빈 날짜를 클릭해 일정을 추가하세요</span>}
+          <div className="flex-1 overflow-y-auto space-y-4 pr-3 mb-4 custom-scrollbar">
+            {memos.map(memo => (
+              <div key={memo.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-colors relative group shadow-sm">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-black bg-white border border-slate-200 px-2 py-1 rounded-md text-slate-600 shadow-sm">{memo.site_name}</span>
+                    <span className="text-[13px] font-black text-slate-800">{memo.author_name}</span>
+                  </div>
+                  {(userRole === 'master' || userRole === 'admin' || userEmail === memo.author_email) && (
+                    <button onClick={() => handleDeleteMemo(memo.id, memo.author_email)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
+                  )}
+                </div>
+                <p className="text-base font-bold text-slate-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
               </div>
+            ))}
+            {memos.length === 0 && <p className="w-full text-center text-slate-400 text-sm font-bold py-10">첫 현장 메모를 남겨보세요!</p>}
+          </div>
+
+          <div className="flex gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-inner mt-auto flex-shrink-0">
+            <input type="text" value={newMemoContent} onChange={e => setNewMemoContent(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddMemo()} placeholder="메모 남기기 (엔터 전송)" className="flex-1 bg-transparent border-none px-4 text-base font-bold focus:outline-none text-slate-700" />
+            <button onClick={handleAddMemo} className="bg-emerald-500 text-white px-5 py-3 rounded-xl font-black hover:bg-emerald-600 transition-colors shadow-md flex items-center gap-2">
+              <Send size={18}/>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 🗓️ 하단: 대형 캘린더 */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8 flex flex-col min-h-[750px] w-full relative">
+        <div className="flex items-center justify-between mb-8 pb-5 border-b border-slate-100">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><CalendarIcon size={24}/></div>
+            <h3 className="text-2xl font-black text-slate-800">현장 휴가 & 주요 일정 캘린더</h3>
+            {(userRole === 'master' || userRole === 'admin') && <span className="text-[11px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg ml-2">전체 현장</span>}
+            {canEditEvent && <span className="text-[13px] font-bold text-emerald-600 ml-3 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">💡 빈 날짜를 클릭해 일정을 추가하세요</span>}
+          </div>
+          
+          <div className="flex items-center gap-5 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
+            <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-white rounded-lg text-slate-400 hover:text-blue-600 transition-colors"><ChevronLeft size={24}/></button>
+            <span className="text-lg font-black text-slate-700 w-32 text-center">
+              {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
+            </span>
+            <button onClick={() => changeMonth(1)} className="p-1 hover:bg-white rounded-lg text-slate-400 hover:text-blue-600 transition-colors"><ChevronRight size={24}/></button>
+          </div>
+        </div>
+
+        <div className="flex-1 bg-slate-50/50 rounded-3xl border border-slate-100 p-6">
+          <div className="grid grid-cols-7 gap-4 mb-4">
+            {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+              <div key={day} className={`text-center text-lg font-black py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-slate-500'}`}>
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-4">
+            {blanks.map((_, i) => <div key={`blank-${i}`} className="min-h-[140px] xl:min-h-[160px] rounded-2xl bg-transparent"></div>)}
+            {days.map(day => {
+              const currentDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
               
-              <div className="flex items-center gap-5 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
-                <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-white rounded-lg text-slate-400 hover:text-blue-600 transition-colors"><ChevronLeft size={24}/></button>
-                <span className="text-lg font-black text-slate-700 w-32 text-center">
-                  {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
-                </span>
-                <button onClick={() => changeMonth(1)} className="p-1 hover:bg-white rounded-lg text-slate-400 hover:text-blue-600 transition-colors"><ChevronRight size={24}/></button>
-              </div>
-            </div>
+              const daysVacations = approvedVacations.filter(vac => vac.start_date <= currentDateStr && vac.end_date >= currentDateStr)
+              const daysEvents = siteEvents.filter(ev => ev.start_date <= currentDateStr && (ev.end_date || ev.start_date) >= currentDateStr)
+              const isToday = new Date().toISOString().split('T')[0] === currentDateStr
 
-            <div className="flex-1 bg-slate-50/50 rounded-3xl border border-slate-100 p-6">
-              <div className="grid grid-cols-7 gap-4 mb-4">
-                {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
-                  <div key={day} className={`text-center text-lg font-black py-2 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-slate-500'}`}>
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-4">
-                {blanks.map((_, i) => <div key={`blank-${i}`} className="min-h-[140px] xl:min-h-[160px] rounded-2xl bg-transparent"></div>)}
-                {days.map(day => {
-                  const currentDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                  
-                  const daysVacations = approvedVacations.filter(vac => vac.start_date <= currentDateStr && vac.end_date >= currentDateStr)
-                  const daysEvents = siteEvents.filter(ev => ev.start_date <= currentDateStr && (ev.end_date || ev.start_date) >= currentDateStr)
-                  const isToday = new Date().toISOString().split('T')[0] === currentDateStr
-
-                  return (
-                    <div 
-                      key={day} 
-                      onClick={() => openNewEventModal(currentDateStr)}
-                      className={`min-h-[140px] xl:min-h-[160px] rounded-2xl border p-4 transition-colors flex flex-col 
-                        ${isToday ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-100' : 'bg-white border-slate-200 hover:border-blue-300'}
-                        ${canEditEvent ? 'cursor-pointer' : ''}
-                      `}
-                    >
-                      <p className={`text-lg font-black mb-3 ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>{day}</p>
-                      <div className="space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-                        
-                        {/* 🚧 수기 일정 배지 (글씨 text-sm으로 상향!) */}
-                        {daysEvents.map((ev, idx) => (
-                          <div 
-                            key={`ev-${idx}`} 
-                            onClick={(e) => openEditEventModal(e, ev)}
-                            className="bg-emerald-100 text-emerald-800 text-sm font-bold px-3 py-2 rounded-lg truncate border border-emerald-200/50 shadow-sm cursor-pointer hover:bg-emerald-200 transition-colors"
-                          >
-                            🚧 {ev.title}
-                          </div>
-                        ))}
-
-                        {/* 🏝️ 휴가자 배지 (글씨 text-sm으로 상향!) */}
-                        {daysVacations.map((vac, idx) => (
-                          <div 
-                            key={`vac-${idx}`} 
-                            onClick={(e) => openVacationModal(e, vac)}
-                            className="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-2 rounded-lg truncate border border-blue-200/50 shadow-sm cursor-pointer hover:bg-blue-200 transition-colors"
-                            title={`${vac.user_name} (${vac.vacation_type}) - ${vac.site_name}`}
-                          >
-                            🏝️ {vac.user_name} <span className="font-normal opacity-70 ml-1">{vac.vacation_type.replace('휴가', '')}</span>
-                          </div>
-                        ))}
-                        
+              return (
+                <div 
+                  key={day} 
+                  onClick={() => openNewEventModal(currentDateStr)}
+                  className={`min-h-[140px] xl:min-h-[160px] rounded-2xl border p-4 transition-colors flex flex-col 
+                    ${isToday ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-100' : 'bg-white border-slate-200 hover:border-blue-300'}
+                    ${canEditEvent ? 'cursor-pointer' : ''}
+                  `}
+                >
+                  <p className={`text-lg font-black mb-3 ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>{day}</p>
+                  <div className="space-y-2 flex-1 overflow-y-auto custom-scrollbar">
+                    
+                    {daysEvents.map((ev, idx) => (
+                      <div 
+                        key={`ev-${idx}`} 
+                        onClick={(e) => openEditEventModal(e, ev)}
+                        className="bg-emerald-100 text-emerald-800 text-sm font-bold px-3 py-2 rounded-lg truncate border border-emerald-200/50 shadow-sm cursor-pointer hover:bg-emerald-200 transition-colors"
+                      >
+                        🚧 {ev.title}
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+                    ))}
+
+                    {daysVacations.map((vac, idx) => (
+                      <div 
+                        key={`vac-${idx}`} 
+                        onClick={(e) => openVacationModal(e, vac)}
+                        className="bg-blue-100 text-blue-800 text-sm font-bold px-3 py-2 rounded-lg truncate border border-blue-200/50 shadow-sm cursor-pointer hover:bg-blue-200 transition-colors"
+                        title={`${vac.user_name} (${vac.vacation_type}) - ${vac.site_name}`}
+                      >
+                        🏝️ {vac.user_name} <span className="font-normal opacity-70 ml-1">{vac.vacation_type.replace('휴가', '')}</span>
+                      </div>
+                    ))}
+                    
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
       {/* =========================================
-          ✅ 팝업 모달 구역 (일정 / 휴가 / 공지)
+          ✅ 팝업 모달 구역
           ========================================= */}
 
-      {/* 1. 🚧 수기 일정 (추가/수정/읽기) 팝업 */}
       {showEventModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowEventModal(false)}></div>
@@ -528,7 +555,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 2. 🏝️ 휴가 상세정보 (읽기 전용) 팝업 */}
       {showVacationModal && selectedVacation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowVacationModal(false)}></div>
@@ -579,7 +605,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 3. 📢 공지사항 읽기/쓰기 팝업 */}
       {showNoticeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowNoticeModal(false)}></div>
