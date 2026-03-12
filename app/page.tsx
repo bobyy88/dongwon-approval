@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Bell, MessageSquare, Calendar as CalendarIcon, Send, Trash2, ShieldAlert, User, MapPin, ChevronLeft, ChevronRight, Clock, Building2, CalendarCheck, X, FileText } from 'lucide-react'
+import { Bell, MessageSquare, Calendar as CalendarIcon, Send, Trash2, ShieldAlert, User, MapPin, ChevronLeft, ChevronRight, Clock, Building2, CalendarCheck, X, FileText, KeyRound, Lock } from 'lucide-react'
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
@@ -27,22 +27,24 @@ export default function DashboardPage() {
 
   // --- [캘린더 상태 & 모달] ---
   const [currentDate, setCurrentDate] = useState(new Date())
-  
-  // 🚧 수기 일정 (초록색) 모달 상태
   const [showEventModal, setShowEventModal] = useState(false)
   const [editEventId, setEditEventId] = useState<string | null>(null)
   const [eventTitle, setEventTitle] = useState('')
   const [eventStart, setEventStart] = useState('')
   const [eventEnd, setEventEnd] = useState('')
 
-  // 🏝️ 휴가 상세 (파란색) 모달 상태
   const [showVacationModal, setShowVacationModal] = useState(false)
   const [selectedVacation, setSelectedVacation] = useState<any>(null)
 
-  // 📢 공지사항 모달 상태
   const [showNoticeModal, setShowNoticeModal] = useState(false)
   const [noticeViewMode, setNoticeViewMode] = useState<boolean>(false) 
   const [selectedNotice, setSelectedNotice] = useState<any>(null)
+
+  // 🔑 [비밀번호 변경 모달 상태]
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordLoading, setPasswordLoading] = useState(false)
 
   useEffect(() => {
     initDashboard()
@@ -78,7 +80,6 @@ export default function DashboardPage() {
       setUserSite(currentSite)
       setUserName(currentName)
 
-      // 승인 대기자가 아닐 때만 데이터 불러오기
       if (currentRole !== 'pending') {
         fetchNotices()
         fetchMemos(currentRole, currentSite)
@@ -90,7 +91,7 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-  // --- [데이터 패치 함수들] ---
+  // --- [데이터 패치 함수들 (기존 유지)] ---
   const fetchNotices = async () => {
     const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(10)
     if (data) setNotices(data)
@@ -141,22 +142,17 @@ export default function DashboardPage() {
     setPendingCount(count || 0)
   }
 
-  // --- [액션 함수] ---
+  // --- [액션 함수들 (기존 유지)] ---
   const handleAddNotice = async () => {
     if (!newNoticeTitle || !newNoticeContent) return alert('제목과 내용을 모두 입력해주세요.')
     const { error } = await supabase.from('notices').insert([{ title: newNoticeTitle, content: newNoticeContent, author_name: userName, author_email: userEmail }])
-    if (!error) { 
-      setNewNoticeTitle(''); setNewNoticeContent(''); 
-      setShowNoticeModal(false); 
-      fetchNotices(); 
-    }
+    if (!error) { setNewNoticeTitle(''); setNewNoticeContent(''); setShowNoticeModal(false); fetchNotices(); }
   }
 
   const handleDeleteNotice = async (id: string) => {
     if (!confirm('공지사항을 삭제하시겠습니까?')) return
     await supabase.from('notices').delete().eq('id', id)
-    setShowNoticeModal(false) 
-    fetchNotices()
+    setShowNoticeModal(false); fetchNotices()
   }
 
   const handleAddMemo = async () => {
@@ -175,31 +171,21 @@ export default function DashboardPage() {
 
   const openNewEventModal = (dateStr: string) => {
     if (!(userRole === 'manager' || userRole === 'admin' || userRole === 'master')) return;
-    setEditEventId(null)
-    setEventTitle('')
-    setEventStart(dateStr)
-    setEventEnd(dateStr)
-    setShowEventModal(true)
+    setEditEventId(null); setEventTitle(''); setEventStart(dateStr); setEventEnd(dateStr); setShowEventModal(true)
   }
 
   const openEditEventModal = (e: React.MouseEvent, ev: any) => {
     e.stopPropagation();
-    setEditEventId(ev.id)
-    setEventTitle(ev.title)
-    setEventStart(ev.start_date)
-    setEventEnd(ev.end_date || ev.start_date)
-    setShowEventModal(true) 
+    setEditEventId(ev.id); setEventTitle(ev.title); setEventStart(ev.start_date); setEventEnd(ev.end_date || ev.start_date); setShowEventModal(true) 
   }
 
   const saveEvent = async () => {
     if (!eventTitle || !eventStart || !eventEnd) return alert('내용과 기간을 모두 입력해주세요.')
     if (new Date(eventEnd) < new Date(eventStart)) return alert('종료일이 시작일보다 빠를 수 없습니다.')
 
-    if (editEventId) {
-      await supabase.from('site_events').update({ title: eventTitle, start_date: eventStart, end_date: eventEnd }).eq('id', editEventId)
-    } else {
-      await supabase.from('site_events').insert([{ site_name: userSite, title: eventTitle, start_date: eventStart, end_date: eventEnd, author_name: userName, author_email: userEmail }])
-    }
+    if (editEventId) await supabase.from('site_events').update({ title: eventTitle, start_date: eventStart, end_date: eventEnd }).eq('id', editEventId)
+    else await supabase.from('site_events').insert([{ site_name: userSite, title: eventTitle, start_date: eventStart, end_date: eventEnd, author_name: userName, author_email: userEmail }])
+    
     setShowEventModal(false)
     fetchEvents(userRole, userSite, currentDate)
   }
@@ -212,24 +198,9 @@ export default function DashboardPage() {
     fetchEvents(userRole, userSite, currentDate)
   }
 
-  const openVacationModal = (e: React.MouseEvent, vac: any) => {
-    e.stopPropagation();
-    setSelectedVacation(vac);
-    setShowVacationModal(true);
-  }
-
-  const openWriteNotice = () => {
-    setNoticeViewMode(false)
-    setNewNoticeTitle('')
-    setNewNoticeContent('')
-    setShowNoticeModal(true)
-  }
-
-  const openReadNotice = (notice: any) => {
-    setSelectedNotice(notice)
-    setNoticeViewMode(true)
-    setShowNoticeModal(true)
-  }
+  const openVacationModal = (e: React.MouseEvent, vac: any) => { e.stopPropagation(); setSelectedVacation(vac); setShowVacationModal(true); }
+  const openWriteNotice = () => { setNoticeViewMode(false); setNewNoticeTitle(''); setNewNoticeContent(''); setShowNoticeModal(true) }
+  const openReadNotice = (notice: any) => { setSelectedNotice(notice); setNoticeViewMode(true); setShowNoticeModal(true) }
 
   const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
   const getFirstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay()
@@ -239,18 +210,33 @@ export default function DashboardPage() {
   const blanks = Array(firstDay).fill(null)
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
-  const changeMonth = (offset: number) => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1))
-  }
+  const changeMonth = (offset: number) => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1))
 
   const canEditEvent = userRole === 'master' || userRole === 'admin' || userRole === 'manager';
 
+  // 🔑 [새 기능] 비밀번호 자체 변경 로직
+  const handlePasswordChange = async () => {
+    if (newPassword.length < 6) return alert('비밀번호는 최소 6자리 이상이어야 합니다.')
+    if (newPassword !== confirmPassword) return alert('비밀번호가 서로 일치하지 않습니다.')
+    
+    setPasswordLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    
+    if (error) {
+      alert('비밀번호 변경 실패: ' + error.message)
+    } else {
+      alert('비밀번호가 성공적으로 변경되었습니다.\n안전을 위해 새로운 비밀번호로 다시 로그인해주세요.')
+      await supabase.auth.signOut()
+      window.location.href = '/login' // 강제 로그아웃 후 로그인 화면으로 튕겨냄
+    }
+    setPasswordLoading(false)
+  }
+
 
   // =========================================================================
-  // 🚨 렌더링 시작 (Early Return 패턴으로 깔끔하게 정리!)
+  // 🚨 렌더링 시작
   // =========================================================================
 
-  // 1. 로딩 중 화면
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -259,7 +245,6 @@ export default function DashboardPage() {
     )
   }
 
-  // 2. 🔒 승인 대기자 원천 차단 화면 (대시보드 봉쇄)
   if (userRole === 'pending') {
     return (
       <div className="max-w-[1600px] w-full mx-auto px-4 py-20 animate-in fade-in zoom-in-95 flex items-center justify-center min-h-[80vh]">
@@ -282,25 +267,33 @@ export default function DashboardPage() {
     )
   }
 
-  // 3. 정상 승인된 사용자의 메인 대시보드 화면
   return (
     <div className="max-w-[1600px] w-full mx-auto space-y-8 px-4 sm:px-6 lg:px-8 animate-in fade-in duration-700 pb-20 pt-6 relative">
       
       {/* 🚀 상단 배너 */}
       <div className="bg-blue-50 rounded-[2rem] border border-blue-100 shadow-sm py-6 px-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-5">
-          <div className="w-14 h-14 bg-white text-blue-600 rounded-full flex items-center justify-center font-black text-2xl border border-blue-200 shadow-sm">
+          <div className="w-14 h-14 bg-white text-blue-600 rounded-full flex items-center justify-center font-black text-2xl border border-blue-200 shadow-sm flex-shrink-0">
             {userName ? userName[0] : 'U'}
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-800 mb-1">환영합니다, {userName} 님! 👋</h2>
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-2xl font-black text-slate-800">환영합니다, {userName} 님! 👋</h2>
+              {/* 🔑 [새 기능] 비밀번호 변경 버튼 */}
+              <button 
+                onClick={() => { setNewPassword(''); setConfirmPassword(''); setShowPasswordModal(true); }} 
+                className="flex items-center gap-1.5 text-[12px] font-black text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm"
+              >
+                <KeyRound size={14} /> 비밀번호 변경
+              </button>
+            </div>
             <p className="text-blue-600/80 font-bold text-sm flex items-center gap-1.5">
               <MapPin size={14} className="text-blue-400" /> {userSite} 현장 소속
             </p>
           </div>
         </div>
         <div className="bg-white border border-blue-100 px-6 py-3 rounded-2xl flex items-center gap-4">
-          <p className="text-xs text-blue-300 font-black uppercase tracking-widest border-r border-blue-100 pr-4">System Role</p>
+          <p className="text-xs text-blue-300 font-black uppercase tracking-widest border-r border-blue-100 pr-4">Dongwon Role</p>
           <p className="font-bold text-base text-slate-700 flex items-center gap-2">
             {userRole === 'master' ? <><ShieldAlert size={16} className="text-purple-500"/> 최고 관리자</> : 
              userRole === 'admin' ? <><User size={16} className="text-emerald-500"/> 본사 관리자</> : 
@@ -505,6 +498,47 @@ export default function DashboardPage() {
           ✅ 팝업 모달 구역
           ========================================= */}
 
+      {/* 🔑 내 비밀번호 변경 모달 */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowPasswordModal(false)}></div>
+          <div className="relative bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 p-10 w-full max-w-md animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center mb-8">
+              <h4 className="font-black text-slate-800 flex items-center gap-3 text-xl">
+                <KeyRound size={24} className="text-blue-600" /> 비밀번호 변경
+              </h4>
+              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-50 p-2 rounded-full"><X size={20}/></button>
+            </div>
+            
+            <div className="space-y-5">
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="password" placeholder="새로운 비밀번호 (6자리 이상)" required 
+                  value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 text-base font-bold focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                />
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="password" placeholder="새로운 비밀번호 확인" required 
+                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 text-base font-bold focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                />
+              </div>
+              <button 
+                onClick={handlePasswordChange} disabled={passwordLoading}
+                className="w-full mt-4 bg-slate-800 text-white font-black text-lg py-5 rounded-2xl hover:bg-slate-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {passwordLoading ? '변경 중...' : '비밀번호 변경 완료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* (기존) 일정 모달 */}
       {showEventModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowEventModal(false)}></div>
@@ -515,17 +549,10 @@ export default function DashboardPage() {
               </h4>
               <button onClick={() => setShowEventModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-50 p-2 rounded-full"><X size={20}/></button>
             </div>
-            
             <div className="space-y-5 mb-8">
               <div>
                 <label className="text-[13px] font-black text-slate-400 uppercase mb-2 block">일정 내용</label>
-                <textarea 
-                  value={eventTitle} onChange={e => setEventTitle(e.target.value)} 
-                  disabled={!canEditEvent}
-                  placeholder="예: 콘크리트 타설, 안전점검" 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base font-bold focus:ring-2 focus:ring-emerald-200 outline-none resize-none min-h-[100px]" 
-                  autoFocus={canEditEvent}
-                />
+                <textarea value={eventTitle} onChange={e => setEventTitle(e.target.value)} disabled={!canEditEvent} placeholder="예: 콘크리트 타설, 안전점검" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base font-bold focus:ring-2 focus:ring-emerald-200 outline-none resize-none min-h-[100px]" autoFocus={canEditEvent} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -538,23 +565,17 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-
             {canEditEvent && (
               <div className="flex gap-3">
-                {editEventId && (
-                  <button onClick={deleteEvent} className="bg-red-50 text-red-600 font-black py-4 px-5 rounded-xl hover:bg-red-100 transition-colors flex-shrink-0">
-                    <Trash2 size={20} />
-                  </button>
-                )}
-                <button onClick={saveEvent} className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-xl text-base hover:bg-emerald-700 transition-colors">
-                  {editEventId ? '수정 완료' : '저장하기'}
-                </button>
+                {editEventId && <button onClick={deleteEvent} className="bg-red-50 text-red-600 font-black py-4 px-5 rounded-xl hover:bg-red-100 transition-colors flex-shrink-0"><Trash2 size={20} /></button>}
+                <button onClick={saveEvent} className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-xl text-base hover:bg-emerald-700 transition-colors">{editEventId ? '수정 완료' : '저장하기'}</button>
               </div>
             )}
           </div>
         </div>
       )}
 
+      {/* (기존) 휴가 상세 모달 */}
       {showVacationModal && selectedVacation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowVacationModal(false)}></div>
@@ -565,46 +586,25 @@ export default function DashboardPage() {
               </h4>
               <button onClick={() => setShowVacationModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-50 p-2 rounded-full"><X size={20}/></button>
             </div>
-            
             <div className="space-y-6">
               <div className="flex items-center gap-5 bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center font-black text-blue-600 shadow-sm text-2xl border border-blue-100">
-                  {selectedVacation.user_name[0]}
-                </div>
-                <div>
-                  <p className="font-black text-slate-800 text-xl mb-1">{selectedVacation.user_name}</p>
-                  <p className="text-sm font-bold text-blue-600">{selectedVacation.site_name} 현장</p>
-                </div>
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center font-black text-blue-600 shadow-sm text-2xl border border-blue-100">{selectedVacation.user_name[0]}</div>
+                <div><p className="font-black text-slate-800 text-xl mb-1">{selectedVacation.user_name}</p><p className="text-sm font-bold text-blue-600">{selectedVacation.site_name} 현장</p></div>
               </div>
-              
               <div className="grid grid-cols-2 gap-5 bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                <div>
-                  <p className="text-[11px] font-black text-slate-400 uppercase mb-1.5">휴가 구분</p>
-                  <p className="text-base font-black text-slate-700">{selectedVacation.vacation_type}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-black text-slate-400 uppercase mb-1.5">사용 일수</p>
-                  <p className="text-base font-black text-slate-700">{selectedVacation.use_days}일</p>
-                </div>
-                <div className="col-span-2 pt-4 border-t border-slate-200">
-                  <p className="text-[11px] font-black text-slate-400 uppercase mb-1.5">일정 기간</p>
-                  <p className="text-base font-black text-slate-700">{selectedVacation.start_date} <span className="text-slate-400 font-normal mx-2">~</span> {selectedVacation.end_date}</p>
-                </div>
+                <div><p className="text-[11px] font-black text-slate-400 uppercase mb-1.5">휴가 구분</p><p className="text-base font-black text-slate-700">{selectedVacation.vacation_type}</p></div>
+                <div><p className="text-[11px] font-black text-slate-400 uppercase mb-1.5">사용 일수</p><p className="text-base font-black text-slate-700">{selectedVacation.use_days}일</p></div>
+                <div className="col-span-2 pt-4 border-t border-slate-200"><p className="text-[11px] font-black text-slate-400 uppercase mb-1.5">일정 기간</p><p className="text-base font-black text-slate-700">{selectedVacation.start_date} <span className="text-slate-400 font-normal mx-2">~</span> {selectedVacation.end_date}</p></div>
               </div>
-
               {selectedVacation.remarks && (
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mt-6">
-                  <p className="text-[11px] font-black text-slate-400 uppercase mb-3 flex items-center gap-1.5">
-                    <MessageSquare size={14}/> 비상연락 및 인수인계
-                  </p>
-                  <p className="text-base font-bold text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedVacation.remarks}</p>
-                </div>
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 mt-6"><p className="text-[11px] font-black text-slate-400 uppercase mb-3 flex items-center gap-1.5"><MessageSquare size={14}/> 비상연락 및 인수인계</p><p className="text-base font-bold text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedVacation.remarks}</p></div>
               )}
             </div>
           </div>
         </div>
       )}
 
+      {/* (기존) 공지사항 모달 */}
       {showNoticeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={()=>setShowNoticeModal(false)}></div>
@@ -616,38 +616,21 @@ export default function DashboardPage() {
               </h4>
               <button onClick={() => setShowNoticeModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-50 p-2.5 rounded-full"><X size={20}/></button>
             </div>
-            
             {!noticeViewMode ? (
               <div className="space-y-6">
-                <div>
-                  <label className="text-[13px] font-black text-slate-400 uppercase mb-2 block">공지 제목</label>
-                  <input type="text" value={newNoticeTitle} onChange={e => setNewNoticeTitle(e.target.value)} placeholder="제목을 입력하세요" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base font-bold focus:ring-2 focus:ring-red-200 outline-none" autoFocus />
-                </div>
-                <div>
-                  <label className="text-[13px] font-black text-slate-400 uppercase mb-2 block">본문 내용</label>
-                  <textarea value={newNoticeContent} onChange={e => setNewNoticeContent(e.target.value)} placeholder="직원들에게 전달할 내용을 상세히 적어주세요." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-base font-bold focus:ring-2 focus:ring-red-200 outline-none h-64 resize-none custom-scrollbar" />
-                </div>
-                <button onClick={handleAddNotice} className="w-full mt-6 bg-slate-800 text-white font-black text-lg py-5 rounded-2xl hover:bg-slate-700 transition-colors shadow-lg">
-                  공지 등록하기
-                </button>
+                <div><label className="text-[13px] font-black text-slate-400 uppercase mb-2 block">공지 제목</label><input type="text" value={newNoticeTitle} onChange={e => setNewNoticeTitle(e.target.value)} placeholder="제목을 입력하세요" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base font-bold focus:ring-2 focus:ring-red-200 outline-none" autoFocus /></div>
+                <div><label className="text-[13px] font-black text-slate-400 uppercase mb-2 block">본문 내용</label><textarea value={newNoticeContent} onChange={e => setNewNoticeContent(e.target.value)} placeholder="직원들에게 전달할 내용을 상세히 적어주세요." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-base font-bold focus:ring-2 focus:ring-red-200 outline-none h-64 resize-none custom-scrollbar" /></div>
+                <button onClick={handleAddNotice} className="w-full mt-6 bg-slate-800 text-white font-black text-lg py-5 rounded-2xl hover:bg-slate-700 transition-colors shadow-lg">공지 등록하기</button>
               </div>
             ) : (
               <div>
                 <h2 className="text-2xl font-black text-slate-800 mb-4 leading-snug">{selectedNotice?.title}</h2>
                 <div className="flex items-center gap-4 text-[13px] font-bold text-slate-500 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-1.5"><User size={16}/> {selectedNotice?.author_name}</div>
-                  <div className="w-1.5 h-1.5 bg-slate-300 rounded-full"></div>
-                  <div className="flex items-center gap-1.5"><CalendarIcon size={16}/> {new Date(selectedNotice?.created_at).toLocaleDateString()}</div>
+                  <div className="flex items-center gap-1.5"><User size={16}/> {selectedNotice?.author_name}</div><div className="w-1.5 h-1.5 bg-slate-300 rounded-full"></div><div className="flex items-center gap-1.5"><CalendarIcon size={16}/> {new Date(selectedNotice?.created_at).toLocaleDateString()}</div>
                 </div>
-                <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 min-h-[250px]">
-                  <p className="text-base font-bold text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {selectedNotice?.content}
-                  </p>
-                </div>
+                <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 min-h-[250px]"><p className="text-base font-bold text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedNotice?.content}</p></div>
                 {(userRole === 'master' || userRole === 'admin') && (
-                  <button onClick={() => handleDeleteNotice(selectedNotice?.id)} className="w-full mt-8 bg-red-50 text-red-600 font-black text-base py-4 rounded-2xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
-                    <Trash2 size={20}/> 이 공지 삭제하기
-                  </button>
+                  <button onClick={() => handleDeleteNotice(selectedNotice?.id)} className="w-full mt-8 bg-red-50 text-red-600 font-black text-base py-4 rounded-2xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"><Trash2 size={20}/> 이 공지 삭제하기</button>
                 )}
               </div>
             )}

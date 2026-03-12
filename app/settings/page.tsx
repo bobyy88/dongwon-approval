@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Shield, MapPin, Search, Settings, Mail, Save, Plus, Trash2, Building2 } from 'lucide-react'
+import { Shield, MapPin, Search, Settings, Mail, Save, Plus, Trash2, Building2, KeyRound } from 'lucide-react'
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -27,7 +27,6 @@ export default function SettingsPage() {
     const myEmail = session.user.email || '';
     const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
     
-    // 👑 대표님 이메일 고정
     let myRole = myProfile?.role || 'pending'
     if (myEmail === 'bobyy88@naver.com') { 
       myRole = 'master'
@@ -83,12 +82,36 @@ export default function SettingsPage() {
     
     if (error) alert(`저장 실패: ${error.message}`)
     else {
-      alert('권한이 정상적으로 수정/승인되었습니다.')
+      alert('권한 및 정보가 정상적으로 저장되었습니다.')
       setModifiedIds(prev => {
         const newSet = new Set(prev)
         newSet.delete(userId)
         return newSet
       })
+    }
+  }
+
+  // 🔑 [새 기능] 비밀번호 강제 초기화 함수
+  const handleResetPassword = async (userId: string, userName: string) => {
+    const isConfirm = confirm(`[경고] ${userName} 님의 비밀번호를 강제로 초기화 하시겠습니까?\n초기화된 비밀번호는 'dongwon123!' 입니다.`)
+    if (!isConfirm) return;
+
+    try {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        alert(`✅ ${userName} 님의 비밀번호가 'dongwon123!' 으로 초기화되었습니다.\n해당 직원에게 임시 비밀번호를 전달해 주세요.`);
+      } else {
+        alert(`초기화 실패: ${data.error}`);
+      }
+    } catch (err) {
+      alert('서버와의 통신에 실패했습니다.');
     }
   }
 
@@ -116,7 +139,7 @@ export default function SettingsPage() {
             <Settings className="text-slate-800" size={28}/> 
             시스템 권한 및 현장 설정
           </h2>
-          <p className="text-base font-bold text-slate-400 mt-2">공식 현장을 개설/폐쇄하고, 직원의 가입 승인 및 시스템 권한을 통제합니다.</p>
+          <p className="text-base font-bold text-slate-400 mt-2">공식 현장을 개설/폐쇄하고, 직원의 시스템 권한을 통제합니다.</p>
         </div>
       </div>
 
@@ -180,7 +203,6 @@ export default function SettingsPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredProfiles.map((profile) => (
-                  // ✅ 승인 대기자(pending)는 노란색 배경으로 눈에 띄게 강조!
                   <tr key={profile.id} className={`transition-colors group ${profile.role === 'pending' ? 'bg-amber-50/50 hover:bg-amber-100/50' : 'hover:bg-slate-50/50'}`}>
                     
                     <td className="py-5 px-8">
@@ -220,7 +242,6 @@ export default function SettingsPage() {
                               profile.role === 'pending' ? 'text-orange-600 bg-orange-100 border border-orange-200 ring-2 ring-orange-400/20' : 
                               'bg-slate-50 border border-slate-200 text-slate-700 focus:ring-2 focus:ring-blue-100'}`}
                         >
-                          {/* ✅ 승인 대기 항목 추가! */}
                           <option value="pending">승인 대기 🔒</option>
                           <option value="staff">일반 근로자</option>
                           <option value="manager">현장 소장</option>
@@ -253,17 +274,26 @@ export default function SettingsPage() {
                       {new Date(profile.created_at).toLocaleDateString()}
                     </td>
 
-                    <td className="py-5 px-8 text-center">
+                    {/* ✅ 비밀번호 초기화 버튼 추가 */}
+                    <td className="py-5 px-8 text-center space-y-2">
                       <button 
                         onClick={() => handleSave(profile.id)}
                         disabled={!modifiedIds.has(profile.id)}
-                        className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-black text-sm transition-all ${
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm transition-all ${
                           modifiedIds.has(profile.id) 
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 active:scale-95 hover:bg-blue-700'
                             : profile.role === 'pending' ? 'bg-amber-100 text-amber-400 cursor-not-allowed' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                       >
                         {modifiedIds.has(profile.id) ? <><Save size={16} /> 저장(승인)</> : '저장완료'}
+                      </button>
+                      
+                      {/* 마스터/어드민만 남의 비밀번호 초기화 가능 */}
+                      <button
+                        onClick={() => handleResetPassword(profile.id, profile.name)}
+                        className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[12px] bg-slate-50 border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors shadow-sm"
+                      >
+                        <KeyRound size={14} /> 비밀번호 초기화
                       </button>
                     </td>
 

@@ -2,102 +2,99 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { Building2, Mail, Lock, User, ArrowRight } from 'lucide-react'
 
-export default function AuthPage() {
-  const [isSignUp, setIsSignUp] = useState(false) // 가입/로그인 모드 전환
+export default function LoginPage() {
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('') // 가입 시 이름 추가
+  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    if (isSignUp) {
-      // --- [회원 가입 로직] ---
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name } // 추가 정보를 메타데이터에 저장
-        }
-      })
-
-      if (error) {
-        alert('가입 실패: ' + error.message)
-      } else {
-        // [중요] 가입 성공 시 profiles 테이블에 기본 정보 수동 입력
-        // (트리거 설정을 안 했을 경우를 대비한 안전 장치)
-        if (data.user) {
-          await supabase.from('profiles').insert([
-            { id: data.user.id, email: email, name: name, role: 'staff' }
-          ])
-        }
-        alert('회원가입 성공! 이제 로그인해주세요.')
-        setIsSignUp(false)
-      }
-    } else {
-      // --- [로그인 로직] ---
+    if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) alert('로그인 실패: ' + error.message)
-      else window.location.href = '/' // 성공 시 메인으로 이동
+      if (error) alert('로그인 실패: 이메일이나 비밀번호를 다시 확인해주세요.')
+      else router.push('/')
+    } else {
+      if (!name.trim()) { alert('이름을 입력해주세요.'); setLoading(false); return; }
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      if (error) alert('회원가입 실패: ' + error.message)
+      else {
+        if (data.user) {
+          // 가입 시 기본 권한은 pending(승인 대기)
+          await supabase.from('profiles').insert([{ id: data.user.id, email, name, role: 'pending' }])
+          alert('가입이 완료되었습니다. 관리자 승인 후 이용 가능합니다.')
+          setMode('login')
+        }
+      }
     }
     setLoading(false)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-      <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 border border-slate-100">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 p-10 animate-in fade-in zoom-in-95 duration-500">
+        
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-black text-slate-800 mb-2">
-            {isSignUp ? '계정 생성' : '환영합니다'}
-          </h2>
-          <p className="text-slate-400 font-bold">소규모 현장 그룹웨어 시스템 v1.0</p>
+          <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200">
+            <Building2 size={32} />
+          </div>
+          <h1 className="text-3xl font-black text-slate-800 mb-2">동원전력개발</h1>
+          <p className="text-sm font-bold text-slate-400 tracking-widest uppercase">
+            Dongwon Electric Development
+          </p>
         </div>
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          {isSignUp && (
-            <input
-              type="text"
-              placeholder="이름"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold"
-              required
-            />
+        <form onSubmit={handleAuth} className="space-y-5">
+          {mode === 'signup' && (
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input 
+                type="text" placeholder="실명 입력" required value={name} onChange={(e) => setName(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 text-base font-bold focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+              />
+            </div>
           )}
-          <input
-            type="email"
-            placeholder="이메일"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold"
-            required
-          />
-          <input
-            type="password"
-            placeholder="비밀번호"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold"
-            required
-          />
-          <button
-            disabled={loading}
-            className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all active:scale-95"
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="email" placeholder="이메일 주소" required value={email} onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 text-base font-bold focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+            />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="password" placeholder="비밀번호" required value={password} onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-5 py-4 text-base font-bold focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+            />
+          </div>
+          
+          <button 
+            type="submit" disabled={loading}
+            className="w-full mt-4 bg-slate-800 text-white font-black text-lg py-5 rounded-2xl hover:bg-slate-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? '처리 중...' : isSignUp ? '가입하기' : '로그인'}
+            {loading ? '처리 중...' : mode === 'login' ? '로그인' : '사원 등록 완료'}
+            {!loading && <ArrowRight size={20} />}
           </button>
         </form>
 
-        <div className="mt-8 text-center">
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-sm font-bold text-blue-500 hover:underline"
-          >
-            {isSignUp ? '이미 계정이 있으신가요? 로그인' : '처음이신가요? 계정 생성'}
-          </button>
+        <div className="mt-8 text-center border-t border-slate-100 pt-6">
+          {mode === 'login' ? (
+            <p className="text-sm font-bold text-slate-500">
+              계정이 없으신가요? <button onClick={() => setMode('signup')} className="text-blue-600 hover:underline ml-1">사원 등록하기</button>
+            </p>
+          ) : (
+            <p className="text-sm font-bold text-slate-500">
+              <button onClick={() => setMode('login')} className="text-slate-400 hover:text-slate-800 transition-colors">← 로그인 화면으로 돌아가기</button>
+            </p>
+          )}
         </div>
       </div>
     </div>
