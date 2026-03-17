@@ -19,18 +19,37 @@ export default function LoginPage() {
 
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) alert('로그인 실패: 이메일이나 비밀번호를 다시 확인해주세요.')
+      if (error) alert('로그인 실패: 이메일이나 비밀번호를 확인해주세요.')
       else router.push('/')
-    } else {
+    } 
+    
+    else if (mode === 'signup') {
       if (!name.trim()) { alert('이름을 입력해주세요.'); setLoading(false); return; }
-      const { data, error } = await supabase.auth.signUp({ email, password })
-      if (error) alert('회원가입 실패: ' + error.message)
-      else {
+      
+      // 1. 회원가입 시 이름(name) 데이터를 아예 계정 정보에 강제로 묶어서 전송
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: { name: name }
+        }
+      })
+      
+      if (error) {
+        alert('회원가입 실패: ' + error.message)
+      } else {
         if (data.user) {
-          // 가입 시 기본 권한은 pending(승인 대기)
-          await supabase.from('profiles').insert([{ id: data.user.id, email, name, role: 'pending' }])
-          alert('가입이 완료되었습니다. 관리자 승인 후 이용 가능합니다.')
-          setMode('login')
+          // 2. 가입 직후 profiles 테이블에 이름과 'pending(승인대기)' 권한을 무조건 덮어쓰기(upsert)
+          const { error: profileError } = await supabase.from('profiles').upsert([
+            { id: data.user.id, email: email, name: name, role: 'pending' }
+          ])
+          
+          if (profileError) {
+            alert('가입은 되었으나 프로필 생성에 오류가 있습니다. 대표님께 문의해주세요.')
+          } else {
+            alert('사원 등록이 완료되었습니다! 관리자 승인 후 이용 가능합니다.')
+            setMode('login')
+          }
         }
       }
     }
