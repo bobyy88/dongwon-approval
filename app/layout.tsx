@@ -54,6 +54,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <MenuLink href="/" icon={<LayoutDashboard size={22}/>} label="대시보드" active={pathname === '/'} />
             <MenuLink href="/field" icon={<HardHat size={22}/>} label="현장관제" active={pathname.includes('field')} />
             <MenuLink href="/approval" icon={<FileCheck2 size={22}/>} label="업무결재" active={pathname.includes('approval')} />
+            {/* 🌟🌟🌟 여기에 새로운 서브메뉴 코드를 껴넣습니다 🌟🌟🌟 */}
+            {pathname.includes('approval') && (
+              <div className="pl-14 pr-2 py-1 space-y-1">
+                <button 
+                  onClick={() => router.push('/approval/corporate-card')}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
+                    pathname.includes('corporate-card') 
+                    ? 'bg-blue-50 text-blue-700' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  💳 법인카드 사용내역서
+                </button>
+              </div>
+            )}
+            {/* 🌟🌟🌟 서브메뉴 코드 끝 🌟🌟🌟 */}
             <MenuLink href="/hr" icon={<Users2 size={22}/>} label="인사관리" active={pathname.includes('hr')} />
             
             <div className="pt-10 space-y-2">
