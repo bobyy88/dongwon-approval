@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Bell,
   Search
-} from 'lucide-react' // Menu 아이콘 제거됨
+} from 'lucide-react'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [userName, setUserName] = useState('')
@@ -39,10 +39,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="ko">
-      {/* print:h-auto print:overflow-visible 을 추가하여 인쇄 시 페이지가 잘리는 현상 방지 */}
       <body className="bg-[#f3f4f6] flex h-screen overflow-hidden font-sans text-slate-900 print:h-auto print:overflow-visible print:bg-white">
         
-        {/* 🟩 [왼쪽] 확정된 5대 메뉴 사이드바 (완전 고정형, 인쇄 시 숨김) */}
+        {/* 🟩 [왼쪽] 확정된 5대 메뉴 사이드바 */}
         <aside className="w-72 flex-shrink-0 h-full bg-white border-r border-slate-200 flex flex-col z-20 print:hidden">
           <div className="h-20 flex items-center px-10 border-b border-slate-50 flex-shrink-0">
             <span className="text-2xl font-black text-blue-600 tracking-tighter italic">DONGWON</span>
@@ -52,11 +51,41 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-4">Main Menu</p>
             
             <MenuLink href="/" icon={<LayoutDashboard size={22}/>} label="대시보드" active={pathname === '/'} />
+            
+            {/* 🌟 현장관제 메인 메뉴 */}
             <MenuLink href="/field" icon={<HardHat size={22}/>} label="현장관제" active={pathname.includes('field')} />
+            
+            {/* 🌟🌟🌟 현장관제 서브메뉴 (공정관리 추가!) 🌟🌟🌟 */}
+            {pathname.includes('field') && (
+              <div className="pl-14 pr-2 py-1 space-y-1">
+                <button 
+                  onClick={() => router.push('/field/schedule')}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
+                    pathname.includes('schedule') || pathname === '/field'
+                    ? 'bg-blue-50 text-blue-700' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  📅 공정관리
+                </button>
+                {/* 💡 나중에 여기에 '작업일보', '자재관리', '안전관리' 등을 똑같이 추가하면 됩니다! */}
+              </div>
+            )}
+            
             <MenuLink href="/approval" icon={<FileCheck2 size={22}/>} label="업무결재" active={pathname.includes('approval')} />
-            {/* 🌟🌟🌟 여기에 새로운 서브메뉴 코드를 껴넣습니다 🌟🌟🌟 */}
+            
             {pathname.includes('approval') && (
               <div className="pl-14 pr-2 py-1 space-y-1">
+                <button 
+                  onClick={() => router.push('/approval/leave')}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
+                    pathname.includes('leave') || pathname === '/approval'
+                    ? 'bg-blue-50 text-blue-700' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  🏖️ 휴가 신청서
+                </button>
                 <button 
                   onClick={() => router.push('/approval/corporate-card')}
                   className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
@@ -69,12 +98,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </button>
               </div>
             )}
-            {/* 🌟🌟🌟 서브메뉴 코드 끝 🌟🌟🌟 */}
+            
             <MenuLink href="/hr" icon={<Users2 size={22}/>} label="인사관리" active={pathname.includes('hr')} />
             
             <div className="pt-10 space-y-2">
                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-4 mb-4">Admin</p>
+               
                <MenuLink href="/settings" icon={<Settings2 size={22}/>} label="시스템 설정" active={pathname.includes('settings')} />
+               
+               {pathname.includes('settings') && (
+                 <div className="pl-14 pr-2 py-1 space-y-1 mt-1">
+                   <button 
+                     onClick={() => router.push('/settings')}
+                     className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
+                       pathname === '/settings' 
+                       ? 'bg-blue-50 text-blue-700' 
+                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                     }`}
+                   >
+                     🏢 현장 및 계정 관리
+                   </button>
+                   
+                   <button 
+                     onClick={() => router.push('/settings/card')}
+                     className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
+                       pathname.includes('/settings/card') 
+                       ? 'bg-blue-50 text-blue-700' 
+                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                     }`}
+                   >
+                     💳 법인카드 관리
+                   </button>
+                 </div>
+               )}
             </div>
           </nav>
 
@@ -90,16 +146,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         {/* ⬜ [오른쪽] 메인 영역 */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] print:block print:bg-white">
-          
-          {/* 통합 헤더 (인쇄 시 숨김) */}
           <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-slate-200 flex-shrink-0 z-10 print:hidden">
             <div className="flex items-center gap-6">
-              {/* 햄버거 메뉴 버튼 삭제됨 */}
               <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">
                 {pathname === '/' ? '대시보드' : 
+                 pathname.includes('field/schedule') ? '공정관리' : // 🌟 상단 제목 변경 추가!
                  pathname.includes('field') ? '현장관제 시스템' : 
                  pathname.includes('approval') ? '업무결재 센터' : 
-                 pathname.includes('hr') ? '인사 정보 관리' : '시스템 설정'}
+                 pathname.includes('hr') ? '인사 정보 관리' : 
+                 pathname.includes('settings/card') ? '법인카드 관리' : 
+                 pathname === '/settings' ? '현장 및 계정 관리' : '시스템 설정'}
               </h2>
             </div>
 
@@ -124,7 +180,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
 
-          {/* 본문 콘텐츠 */}
           <main className="flex-1 overflow-y-auto p-8 lg:p-12 print:p-0 print:overflow-visible">
             <div className="w-full max-w-[1600px] mx-auto print:max-w-none">
               {children}
