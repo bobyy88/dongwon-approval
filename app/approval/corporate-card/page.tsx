@@ -416,7 +416,7 @@ export default function CorporateCardPage() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => `${value.toLocaleString()}원`} />
+                <Tooltip formatter={(value: any) => `${Number(value || 0).toLocaleString()}원`} />
                 <Legend verticalAlign="bottom" height={20} wrapperStyle={{ fontSize: '13px', paddingTop: '10px' }} />
               </PieChart>
             </ResponsiveContainer>
