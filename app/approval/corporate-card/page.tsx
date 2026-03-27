@@ -410,7 +410,7 @@ export default function CorporateCardPage() {
                   paddingAngle={3} 
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                  labelLine={{ length1: 15, length2: 10 }}
+                  labelLine={true}
                 >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
