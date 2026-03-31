@@ -75,8 +75,8 @@ export default function SchedulePage() {
       setChartData(formattedData);
 
       // 최신 요약 데이터 추출 (데이터가 있는 마지막 행 기준)
-      const latestData = formattedData.filter(d => d.completedQty !== null).pop() || formattedData[0];
-      const maxPlanned = Math.max(...formattedData.map(d => d.plannedQty));
+      const latestData = formattedData.filter((d: any) => d.completedQty !== null).pop() || formattedData[0];
+const maxPlanned = Math.max(...formattedData.map((d: any) => d.plannedQty));
 
       setSummary({
         totalPlanned: maxPlanned,
