@@ -170,12 +170,12 @@ const maxPlanned = Math.max(...formattedData.map((d: any) => d.plannedQty));
                   />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: any, name: string) => [
-                      name.includes('Rate') ? `${value}%` : `${value}건`,
-                      name === 'plannedQty' ? '계획물량' : 
-                      name === 'completedQty' ? '완료물량' :
-                      name === 'plannedRate' ? '계획공정률' : '실적달성률'
-                    ]}
+                    formatter={(value: any, name: any) => [
+  String(name).includes('Rate') ? `${value}%` : `${value}건`,
+  name === 'plannedQty' ? '계획물량' : 
+  name === 'completedQty' ? '완료물량' :
+  name === 'plannedRate' ? '계획공정률' : '실적달성률'
+]}
                   />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }} />
                   
