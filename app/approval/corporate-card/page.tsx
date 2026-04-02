@@ -26,6 +26,9 @@ export default function CorporateCardPage() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
   
+  // 🌟 가이드 모달 상태 추가
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
+  
   const [expenseData, setExpenseData] = useState({
     expense_date: '',
     amount: '',
@@ -77,7 +80,6 @@ export default function CorporateCardPage() {
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
       if (profile) {
         setUserGrade((profile.grade || profile.role || '').toLowerCase());
-        // 🌟 [수정됨] DB의 진짜 컬럼명인 'site_name'으로 변경!
         setUserSite(profile.site_name || ''); 
         return profile;
       }
@@ -103,7 +105,6 @@ export default function CorporateCardPage() {
 
     let query = supabase.from('corporate_cards').select('*').neq('status', '해지').order('created_at', { ascending: true });
 
-    // 🌟 [수정됨] DB의 진짜 컬럼명인 'site_name'으로 필터링!
     if (!isAdmin) {
       query = query.eq('department_or_site', profile.site_name || '미배정');
     }
@@ -431,11 +432,21 @@ export default function CorporateCardPage() {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">결제 내역 리스트</h2>
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 items-center">
+            
+            {/* 🌟 여기에 가이드 버튼을 추가했습니다! */}
+            <button
+              type="button"
+              onClick={() => setIsGuideOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-all"
+            >
+              💡 분류 가이드 보기
+            </button>
+
             <div className="relative overflow-hidden inline-block">
               <button 
                 disabled={isScanning || cards.length === 0} 
-                className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all ${
+                className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all h-full ${
                   isScanning || cards.length === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
@@ -454,7 +465,7 @@ export default function CorporateCardPage() {
             <button 
               onClick={openManualEntry}
               disabled={cards.length === 0}
-              className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+              className={`px-4 py-2 rounded-md text-sm font-semibold transition-all h-full ${
                 cards.length === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-100 hover:bg-gray-200 text-slate-700'
               }`}
             >
@@ -529,7 +540,11 @@ export default function CorporateCardPage() {
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">카테고리</label>
                 <select value={expenseData.category} onChange={(e) => setExpenseData({...expenseData, category: e.target.value})} className="w-full border p-3 rounded-lg outline-none">
                   <option value="">카테고리 선택</option>
-                  {['운영&유지비', '업무활동비', '복리후생비', '감가자산비', '기타'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  <option value="운영&유지비">운영&유지비</option>
+                  <option value="업무활동비">업무활동비</option>
+                  <option value="복리후생비">복리후생비</option>
+                  <option value="감가자산비">자산/투자성지출 (감가자산비)</option>
+                  <option value="기타">기타</option>
                 </select>
               </div>
               <div>
@@ -581,6 +596,113 @@ export default function CorporateCardPage() {
                 {isSaving ? '수정 중...' : '수정하기'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 법인카드 계정 분류 가이드 모달 */}
+      {isGuideOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+            
+            {/* 모달 헤더 */}
+            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-800">📂 법인카드 계정 분류 가이드</h3>
+              <button 
+                onClick={() => setIsGuideOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            
+            {/* 모달 내용 (스크롤 영역) */}
+            <div className="p-6 overflow-y-auto space-y-4 bg-gray-50">
+              
+              {/* ① 운영비 */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <h4 className="font-bold text-blue-700 text-base mb-2 flex items-center gap-2">
+                  <span className="bg-blue-100 text-blue-800 py-0.5 px-2 rounded font-black text-sm">1</span>
+                  운영비 <span className="text-sm font-normal text-gray-500">(현장/사무 필수 유지비)</span>
+                </h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 ml-1 space-y-1.5">
+                  <li><span className="font-semibold text-gray-900">유류비 / 주차비 / 통행료</span> (차량 운행 관련)</li>
+                  <li><span className="font-semibold text-gray-900">차량 정비비</span> (소모품 교체, 수리 등)</li>
+                  <li><span className="font-semibold text-gray-900">사무용품 / 소모품 구입</span></li>
+                  <li><span className="font-semibold text-gray-900">통신비 / 소프트웨어 구독료</span> (정기 결제 등)</li>
+                  <li className="text-gray-500 mt-1">팁: 현장 유지를 위해 반복적으로 발생하는 필수 비용입니다.</li>
+                </ul>
+              </div>
+
+              {/* ② 업무활동비 */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <h4 className="font-bold text-green-700 text-base mb-2 flex items-center gap-2">
+                  <span className="bg-green-100 text-green-800 py-0.5 px-2 rounded font-black text-sm">2</span>
+                  업무활동비 <span className="text-sm font-normal text-gray-500">(외부 거래처/미팅 비용)</span>
+                </h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 ml-1 space-y-1.5">
+                  <li><span className="font-semibold text-gray-900">접대비</span> (거래처 식사, 술자리, 경조사 등)</li>
+                  <li><span className="font-semibold text-gray-900">미팅비</span> (거래처 방문 시 카페, 간단한 식사 등)</li>
+                  <li><span className="font-semibold text-gray-900">출장비</span> (현장 외 지역 이동 시 숙박, 장거리 교통비 등)</li>
+                  <li><span className="font-semibold text-gray-900">외주비</span> (현장 보조 인력, 퀵 등 단순 결제형)</li>
+                </ul>
+                <div className="mt-3 p-2 bg-red-50 text-red-700 text-xs font-semibold rounded-lg border border-red-100">
+                  💡 중요: 비고란에 '거래처명'과 '누구(대상자)'를 만났는지 반드시 입력해주세요.
+                </div>
+              </div>
+
+              {/* ③ 복리후생비 */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <h4 className="font-bold text-purple-700 text-base mb-2 flex items-center gap-2">
+                  <span className="bg-purple-100 text-purple-800 py-0.5 px-2 rounded font-black text-sm">3</span>
+                  복리후생비 <span className="text-sm font-normal text-gray-500">(우리 직원 대상 비용)</span>
+                </h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 ml-1 space-y-1.5">
+                  <li><span className="font-semibold text-gray-900">식대</span> (팀 단위 식사 등)</li>
+                  <li><span className="font-semibold text-gray-900">부서 회식비</span> (직원들끼리의 단합 목적)</li>
+                  <li><span className="font-semibold text-gray-900">간식 / 커피</span> (사무실/현장 비치용 간식 구입)</li>
+                  <li className="text-gray-500 mt-1">팁: 우리 회사 직원들의 근로 환경과 사기 진작을 위한 비용입니다.</li>
+                </ul>
+              </div>
+
+              {/* ④ 자산 / 투자성 지출 */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <h4 className="font-bold text-orange-700 text-base mb-2 flex items-center gap-2">
+                  <span className="bg-orange-100 text-orange-800 py-0.5 px-2 rounded font-black text-sm">4</span>
+                  자산/투자성 지출 <span className="text-sm font-normal text-gray-500">(고가 비품 및 교육)</span>
+                </h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 ml-1 space-y-1.5">
+                  <li><span className="font-semibold text-gray-900">장비 구입</span> (노트북, 계측기, 전문 공구 등)</li>
+                  <li><span className="font-semibold text-gray-900">비품 구입</span> (사무용 가구, 에어컨 등 <strong className="text-orange-600">50만 원 이상</strong> 물품)</li>
+                  <li><span className="font-semibold text-gray-900">교육비</span> (직무 관련 교육, 세미나 참가비 등)</li>
+                  <li className="text-gray-500 mt-1">팁: 1년 이상 장기적으로 사용하거나 직원의 역량 강화를 위한 투자 비용입니다.</li>
+                </ul>
+              </div>
+
+              {/* ⑤ 기타 / 예외 */}
+              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <h4 className="font-bold text-gray-700 text-base mb-2 flex items-center gap-2">
+                  <span className="bg-gray-200 text-gray-800 py-0.5 px-2 rounded font-black text-sm">5</span>
+                  기타 / 예외
+                </h4>
+                <ul className="list-disc list-inside text-sm text-gray-700 ml-1 space-y-1.5">
+                  <li>위 항목에 포함되지 않는 특수 지출</li>
+                  <li className="font-bold text-red-600">반드시 증빙 목적과 사유를 코멘트에 상세히 작성</li>
+                </ul>
+              </div>
+
+            </div>
+            
+            {/* 모달 하단 버튼 */}
+            <div className="p-5 border-t border-gray-100 bg-white rounded-b-2xl">
+              <button 
+                onClick={() => setIsGuideOpen(false)}
+                className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition shadow-md"
+              >
+                확인했습니다
+              </button>
+            </div>
+            
           </div>
         </div>
       )}
