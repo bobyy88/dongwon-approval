@@ -71,8 +71,9 @@ export default function SchedulePage() {
     setIsLoading(true)
     try {
       const currentConfig = CONFIG[selectedTeam];
-      const siteInfo = currentConfig.sites[selectedSite as keyof typeof currentConfig.sites];
-      if (!siteInfo) return;
+// 💡 Vercel 에러를 해결하기 위해 타입을 명확하게 지정해 줍니다.
+const siteInfo = (currentConfig.sites as Record<string, { startCol: number }>)[selectedSite];
+if (!siteInfo) return;
 
       const url = `https://docs.google.com/spreadsheets/d/${currentConfig.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(currentConfig.sheetName)}`;
       const response = await fetch(url);
