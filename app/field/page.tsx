@@ -21,7 +21,7 @@ const CONFIG = {
   },
   'D조(야간)': {
     sheetId: '1DLvnkSnZdByTcMPaChmSuGww3CpAyTDRZyTtp6RINrQ',
-    sheetName: 'D조 집계데이터',
+    sheetName: 'D조 S-Curve 집계데이터',
     sites: ['창동전기', '군자전기', '동작전기', '지축전기', '옥수전기', '수서전기', '신답전기', '3전기유치선'],
     startCols: [0, 6, 12, 18, 24, 30, 36, 42],
     color: '#10b981' // 초록색
