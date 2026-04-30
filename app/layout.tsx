@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {/* 🌟 현장관제 메인 메뉴 */}
             <MenuLink href="/field" icon={<HardHat size={22}/>} label="현장관제" active={pathname.includes('field')} />
             
-            {/* 🌟🌟🌟 현장관제 서브메뉴 (공정관리 추가!) 🌟🌟🌟 */}
+            {/* 🌟🌟🌟 현장관제 서브메뉴 🌟🌟🌟 */}
             {pathname.includes('field') && (
               <div className="pl-14 pr-2 py-1 space-y-1">
                 <button 
@@ -68,7 +68,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 >
                   📅 공정관리
                 </button>
-                {/* 💡 나중에 여기에 '작업일보', '자재관리', '안전관리' 등을 똑같이 추가하면 됩니다! */}
+                
+                {/* 🌟 [추가됨] 이슈/로그 관리 버튼 🌟 */}
+                <button 
+                  onClick={() => router.push('/field/issues')}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl text-[14px] font-bold transition-all ${
+                    pathname.includes('issues') 
+                    ? 'bg-blue-50 text-blue-700' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  🚨 이슈/로그 관리
+                </button>
               </div>
             )}
             
@@ -150,7 +161,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex items-center gap-6">
               <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">
                 {pathname === '/' ? '대시보드' : 
-                 pathname.includes('field/schedule') ? '공정관리' : // 🌟 상단 제목 변경 추가!
+                 pathname.includes('field/schedule') ? '공정관리' :
+                 pathname.includes('field/issues') ? '작업 취소/이슈 관리' : // 🌟 상단 제목 분기 추가됨!
                  pathname.includes('field') ? '현장관제 시스템' : 
                  pathname.includes('approval') ? '업무결재 센터' : 
                  pathname.includes('hr') ? '인사 정보 관리' : 

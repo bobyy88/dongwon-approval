@@ -91,9 +91,12 @@ export default function AdminCardsPage() {
   }
 
   const formatNumberWithComma = (value: string | number) => {
-    if (!value) return '';
-    const num = parseInt(value.toString().replace(/[^0-9]/g, ''), 10);
-    return isNaN(num) ? '' : num.toLocaleString();
+    // 🌟 수정: 0은 정상적인 값이므로 통과시키고, 완전히 비어있을 때만 빈칸 반환
+    if (value === null || value === undefined || value === '') return '';
+    const cleanStr = value.toString().replace(/[^0-9]/g, '');
+    if (!cleanStr) return '';
+    const num = parseInt(cleanStr, 10);
+    return isNaN(num) ? '0' : num.toLocaleString();
   }
 
   const openCardModal = (card: any = null) => {
