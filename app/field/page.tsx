@@ -30,12 +30,11 @@ const TEAM_CONFIG = {
   }
 }
 
-// 🌟 신규 재무/금액 기준 설정
 const FINANCE_CONFIG: Record<string, { sheetId: string, sheetName: string, range: string }> = {
   '안성지역 도로시설물 연간 단가 공사': { 
     sheetId: '1R1M6MHtA7E5YiyBe0daKCATUD2sni8H6dDHN5i4Zarc',
     sheetName: '금액 집계',
-    range: 'B2:D100' // 👈 A열을 무시하고, 데이터가 있는 B열~D열만 정확하게 조준 타격!
+    range: 'B2:D100'
   }
 }
 
@@ -116,12 +115,10 @@ export default function FieldMainPage() {
     setIsLoadingFinance(true)
     try {
       const config = FINANCE_CONFIG[siteName];
-      // 🌟 URL에 range 파라미터를 추가하여 엉뚱한 빈칸(A열)을 아예 가져오지 못하게 차단
       const url = `https://docs.google.com/spreadsheets/d/${config.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(config.sheetName)}&range=${config.range}`;
       const response = await fetch(url);
       const text = await response.text();
 
-      // 🌟 구글 사내 보안에 막혀 로그인 HTML 화면이 날아오면 즉각 경고를 띄움
       if (text.trim().startsWith('<')) {
         console.error("구글 보안 로그인 에러 감지됨");
         alert("🚨 구글 시트가 사내 보안에 막혀있습니다. 구글 시트의 [파일] -> [공유] -> [웹에 게시]를 눌러주세요!");
@@ -134,7 +131,6 @@ export default function FieldMainPage() {
       let tempCat: any[] = [];
       let tempTotal = { planned: 0, actual: 0, rate: 0 };
 
-      // B열이 c[0], C열이 c[1], D열이 c[2]가 됨. 0번째 줄은 헤더이므로 slice(1)로 스킵.
       rows.slice(1).forEach((row: any) => {
         if (!row || !row.c || !row.c[0]) return;
         const name = row.c[0]?.v || '';
@@ -164,6 +160,7 @@ export default function FieldMainPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+      
       <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">🏗️ 동원전력 통합 현장관제</h1>
@@ -182,7 +179,7 @@ export default function FieldMainPage() {
         </div>
       </header>
 
-      {/* 1번 뷰: 조별 물량 (생략된 부분 없이 모두 보존) */}
+      {/* 1번 뷰: 조별 물량 */}
       {viewMode === 'volume' && (
         <section className="mb-12 animate-fadeIn">
           <div className="flex justify-between items-end mb-6">
@@ -227,7 +224,7 @@ export default function FieldMainPage() {
         </section>
       )}
 
-      {/* 2번 뷰: 안성 재무 (오류 방어막 적용 완료) */}
+      {/* 2번 뷰: 안성 재무 */}
       {viewMode === 'finance' && (
         <section className="mb-12 animate-fadeIn">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -249,7 +246,8 @@ export default function FieldMainPage() {
                         <Cell fill="#ef4444" />
                         <Cell fill="#f1f5f9" />
                       </Pie>
-                      <Tooltip formatter={(value: number) => `${value.toLocaleString()} 원`} />
+                      {/* 🌟 [수정] 타입 에러 원천 차단: value 타입을 any로 느슨하게 조절하고 방어 코드 적용 */}
+                      <Tooltip formatter={(value: any) => `${Number(value || 0).toLocaleString()} 원`} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -278,9 +276,10 @@ export default function FieldMainPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} />
                       <YAxis tickFormatter={(val) => `${(val / 10000).toLocaleString()}만`} tick={{fill: '#94a3b8', fontSize: 11}} axisLine={false} tickLine={false} width={60} />
+                      {/* 🌟 [수정] 막대 차트 툴팁의 타입 에러 연쇄 폭발을 막기 위해 함께 예방 조치 완료 */}
                       <Tooltip 
                         cursor={{fill: '#f8fafc'}}
-                        formatter={(value: number, name: string) => [`${value.toLocaleString()} 원`, name]}
+                        formatter={(value: any, name: any) => [`${Number(value || 0).toLocaleString()} 원`, name]}
                         contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                       />
                       <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
@@ -295,6 +294,7 @@ export default function FieldMainPage() {
         </section>
       )}
 
+      {/* 하단 프레임 */}
       <section className="border-t pt-8">
         <h2 className="text-xl font-bold text-gray-700 mb-6">추가 관리 항목 (준비 중)</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
