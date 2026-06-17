@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
-// 대표님이 지정하신 취소 사유 데이터화
+// 대표님이 지정하신 취소 사유 데이터화 (원본 유지)
 const ISSUE_CATEGORIES = {
   '당사 귀책': ['통고서 누락', '기타 당사 사유'],
   '발주처 귀책': ['임시열차 운행', '관리소 요청', '차량사업소 요청', '통고서 누락(발주처)', '고장열차입고', '연장급전', '누설전류 측정', '기타 발주처 사유'],
@@ -10,10 +11,14 @@ const ISSUE_CATEGORIES = {
   '기타': ['민원 발생', '기타 사유']
 }
 
+// 대표님의 기존 현장 목록 (원본 유지)
 const SITE_LIST = ['창동전기', '군자전기', '동작전기', '지축전기', '옥수전기', '수서전기', '신답전기', '3전기유치선']
 
 export default function IssueLogPage() {
-  const [issues, setIssues] = useState<any[]>([]) // 임시 데이터 저장소 (추후 DB 연동)
+  const [issues, setIssues] = useState<any[]>([]) // 🔄 Supabase에서 가져올 실제 데이터 저장소
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     site: '',
@@ -23,23 +28,86 @@ export default function IssueLogPage() {
     remarks: ''
   })
 
-  // 카테고리 변경 시 상세 사유 초기화
+  // 🔄 페이지 접속 시 데이터베이스에서 기존 내역 최신순으로 가져오기
+  useEffect(() => {
+    fetchIssues()
+  }, [])
+
+  const fetchIssues = async () => {
+    setIsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('work_issues')
+        .select('*')
+        .order('issue_date', { ascending: false }) // 최신 날짜순 정렬
+
+      if (error) throw error
+      if (data) {
+        // DB 필드명을 기존 코드 구조와 맞춰주기 위한 맵핑 변환
+        const mappedData = data.map((item: any) => ({
+          id: item.id,
+          date: item.issue_date,
+          site: item.site_name,
+          category: item.category,
+          detailReason: item.detail_reason,
+          lossManpower: item.loss_manpower,
+          remarks: item.remarks
+        }))
+        setIssues(mappedData)
+      }
+    } catch (error) {
+      console.error('데이터 로드 실패:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 카테고리 변경 시 상세 사유 초기화 (원본 유지)
   const handleCategoryChange = (e: any) => {
     setFormData({ ...formData, category: e.target.value, detailReason: '' })
   }
 
-  const handleSubmit = (e: any) => {
+  // 💾 Supabase 실시간 연동 저장하기 로직으로 업그레이드
+  const handleSubmit = async (e: any) => {
     e.preventDefault()
     if (!formData.site || !formData.detailReason) {
       alert('현장명과 상세 사유를 반드시 선택하십시오.')
       return
     }
-    // 새로운 이슈 리스트에 추가 (최신순 정렬)
-    setIssues([{ id: Date.now(), ...formData }, ...issues])
-    alert('이슈가 성공적으로 기록되었습니다. (현재는 화면 임시 저장)')
-    
-    // 폼 초기화
-    setFormData({ ...formData, detailReason: '', lossManpower: '', remarks: '' })
+
+    setIsSubmitting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const { error } = await supabase
+        .from('work_issues')
+        .insert([
+          {
+            issue_date: formData.date,
+            site_name: formData.site,
+            category: formData.category,
+            detail_reason: formData.detailReason,
+            loss_manpower: formData.lossManpower ? Number(formData.lossManpower) : null,
+            remarks: formData.remarks || null,
+            user_id: session?.user?.id || null
+          }
+        ])
+
+      if (error) throw error
+
+      alert('이슈가 데이터베이스에 성공적으로 저장되었습니다.')
+      
+      // 폼 초기화
+      setFormData({ ...formData, detailReason: '', lossManpower: '', remarks: '' })
+      
+      // 실시간 리스트 갱신
+      fetchIssues()
+    } catch (error) {
+      console.error('저장 실패:', error)
+      alert('데이터 저장에 실패했습니다. DB 연결 상태를 확인해주세요.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -93,8 +161,13 @@ export default function IssueLogPage() {
               <textarea placeholder="당시 상황, 감독관 지시 내용 등 상세 기록" value={formData.remarks} onChange={(e) => setFormData({...formData, remarks: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none" />
             </div>
 
-            <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-lg transition-all mt-4">
-              이슈 기록하기
+            {/* 🌟 대표님 지시 반영: 문구 변경 및 제출 중 상태 표시 */}
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className={`w-full text-white font-bold py-3 rounded-lg transition-all mt-4 ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'}`}
+            >
+              {isSubmitting ? '저장 중...' : '💾 저장하기'}
             </button>
           </form>
         </div>
@@ -121,7 +194,13 @@ export default function IssueLogPage() {
                 </tr>
               </thead>
               <tbody>
-                {issues.length > 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="p-10 text-center text-slate-400 font-medium animate-pulse">
+                      데이터를 불러오는 중입니다... 🔄
+                    </td>
+                  </tr>
+                ) : issues.length > 0 ? (
                   issues.map(issue => (
                     <tr key={issue.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="p-3 text-sm text-slate-600">{issue.date}</td>
