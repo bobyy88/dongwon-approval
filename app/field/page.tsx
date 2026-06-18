@@ -32,7 +32,7 @@ const TEAM_CONFIG = {
 
 const FINANCE_CONFIG: Record<string, { sheetId: string, sheetName: string, range: string }> = {
   '안성지역 도로시설물 연간 단가 공사': { 
-    sheetId: '1R1M6MHtA7E5YiyBe0daKCATUD2sni8H6dDHN5i4Zarc',
+    sheetId: '1FkK4bDaImta5_3YL9O3FRytdHnfwWhmlqU7UyVHVMFc',
     sheetName: '금액 집계',
     range: 'B2:D100'
   }
