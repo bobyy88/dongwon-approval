@@ -40,6 +40,17 @@
   .primary { background:var(--accent); color:#111; }
   .secondary { background:var(--card); color:var(--text); }
   .empty { color:var(--sub); text-align:center; margin-top:40vh; transform:translateY(-50%); line-height:1.7; }
+  .sheet { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; z-index:10; }
+  .sheet[hidden] { display:none; }
+  .sheet-body { width:100%; max-height:88vh; overflow-y:auto; background:var(--bg); border-radius:20px 20px 0 0;
+    padding:18px 16px calc(env(safe-area-inset-bottom) + 18px); }
+  .sheet-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .sheet-head b { font-size:18px; }
+  .sheet-hint { color:var(--sub); font-size:13px; margin:0 0 14px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+  .design { background:none; padding:0; color:var(--text); display:flex; flex-direction:column; gap:6px; align-items:center; font-size:13px; }
+  .design img { width:100%; aspect-ratio:1170/2532; border-radius:12px; border:2px solid var(--line); }
+  .design.last img { border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -51,6 +62,14 @@
 <div class="bar">
   <button class="secondary" id="addTop" hidden>+ 상위목표</button>
   <button class="primary" id="wallpaper">배경화면 이미지 저장</button>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-body">
+    <div class="sheet-head"><b>디자인 고르기</b><button class="ghost" id="sheetClose">닫기</button></div>
+    <p class="sheet-hint">탭하면 그 디자인으로 이미지를 저장해요.</p>
+    <div class="grid" id="designGrid"></div>
+  </div>
 </div>
 
 <script>
@@ -129,9 +148,13 @@ $('addTop').onclick = () => {
 };
 
 // ---- 배경화면 이미지 (폰 잠금/홈 화면용) ----
+const W = 1170, H = 2532;
+const FONT = '-apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+
 function wrap(ctx, text, maxW) {
   const lines = [];
-  for (const para of String(text).split('\n')) {
+  for (const para of String(text || '').split('\n')) {
+    if (!para) continue;
     let line = '';
     for (const ch of para) {
       if (ctx.measureText(line + ch).width > maxW && line) { lines.push(line); line = ch; }
@@ -141,61 +164,301 @@ function wrap(ctx, text, maxW) {
   }
   return lines;
 }
+function setFont(ctx, w, s) { ctx.font = `${w} ${s}px ${FONT}`; }
+// 텍스트 블록 측정: [{text, size, weight, color, lh, gap}]
+function measure(ctx, parts, maxW) {
+  let h = 0;
+  const out = parts.filter(p => p.text).map(p => {
+    setFont(ctx, p.weight, p.size);
+    const lines = wrap(ctx, p.text, maxW);
+    const ph = lines.length * p.size * p.lh;
+    const r = { ...p, lines, y: h };
+    h += ph + (p.gap || 0);
+    return r;
+  });
+  const last = out[out.length - 1];
+  if (last) h -= last.gap || 0;
+  let w = 0;
+  for (const p of out) { setFont(ctx, p.weight, p.size); for (const l of p.lines) w = Math.max(w, ctx.measureText(l).width); }
+  return { parts: out, h, w };
+}
+function drawText(ctx, m, x, y, align = 'left') {
+  ctx.textBaseline = 'top'; ctx.textAlign = align;
+  for (const p of m.parts) {
+    setFont(ctx, p.weight, p.size); ctx.fillStyle = p.color;
+    p.lines.forEach((l, i) => ctx.fillText(l, x, y + p.y + i * p.size * p.lh));
+  }
+  ctx.textAlign = 'left';
+}
+// 꼬리 달린 말풍선 경로. tail: {side:'bottom'|'top'|'left', at: x or y, dir: -1|1}
+function bubblePath(ctx, x, y, w, h, r, tail) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  if (tail) {
+    const t = 34;
+    if (tail.side === 'bottom') {
+      const tx = tail.at;
+      ctx.moveTo(tx - t * .7, y + h - 1);
+      ctx.quadraticCurveTo(tx, y + h + t * .2, tx + tail.dir * t * 1.1, y + h + t);
+      ctx.quadraticCurveTo(tx + tail.dir * t * .2, y + h + t * .4, tx + t * .7, y + h - 1);
+    } else if (tail.side === 'top') {
+      const tx = tail.at;
+      ctx.moveTo(tx - t * .6, y + 1);
+      ctx.lineTo(tx, y - t * .8);
+      ctx.lineTo(tx + t * .6, y + 1);
+    }
+  }
+}
 
-function drawWallpaper() {
-  const W = 1170, H = 2532, PAD = 110;
-  const font = '-apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d');
+// ── A. 채팅형: 나에게 보내는 메시지 ──────────────────────────
+function designChat(ctx, goals) {
+  const g = ctx.createLinearGradient(0, 0, W * .4, H);
+  g.addColorStop(0, '#0f172a'); g.addColorStop(1, '#1e1b4b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  let y = 820;
+  setFont(ctx, 600, 34); ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.textBaseline = 'top';
+  ctx.textAlign = 'center'; ctx.fillText('나에게 보내는 다짐', W / 2, y); ctx.textAlign = 'left';
+  y += 90;
+  for (const goal of goals) {
+    const maxW = 760, px = 46, py = 36;
+    const m = measure(ctx, [
+      { text: goal.title, size: 56, weight: 800, color: '#1c1917', lh: 1.25, gap: 14 },
+      { text: goal.memo, size: 38, weight: 500, color: 'rgba(28,25,23,.72)', lh: 1.45 }], maxW - px * 2);
+    const bw = Math.max(m.w + px * 2, 300), bh = m.h + py * 2, bx = 90;
+    const grad = ctx.createLinearGradient(bx, y, bx + bw, y + bh);
+    grad.addColorStop(0, '#fbbf24'); grad.addColorStop(1, '#f59e0b');
+    ctx.shadowColor = 'rgba(245,158,11,.35)'; ctx.shadowBlur = 50;
+    bubblePath(ctx, bx, y, bw, bh, 44, { side: 'bottom', at: bx + 50, dir: -1 });
+    ctx.fillStyle = grad; ctx.fill(); ctx.shadowBlur = 0;
+    drawText(ctx, m, bx + px, y + py);
+    y += bh + 70;
+    for (const s of goal.subs) {
+      const sm = measure(ctx, [
+        { text: s.title, size: 44, weight: 700, color: '#fff', lh: 1.25, gap: 10 },
+        { text: s.memo, size: 34, weight: 400, color: 'rgba(255,255,255,.7)', lh: 1.45 }], 640 - 76);
+      const sw = Math.max(sm.w + 76, 240), sh = sm.h + 60, sx = W - 90 - sw;
+      bubblePath(ctx, sx, y, sw, sh, 38, { side: 'bottom', at: sx + sw - 46, dir: 1 });
+      ctx.fillStyle = 'rgba(129,140,248,.28)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(165,180,252,.35)'; ctx.lineWidth = 2; ctx.stroke();
+      drawText(ctx, sm, sx + 38, y + 30);
+      y += sh + 52;
+    }
+    y += 40;
+  }
+}
+
+// ── B. 파스텔 카드 말풍선 ────────────────────────────────────
+function designPastel(ctx, goals) {
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, '#fde68a'); g.addColorStop(.5, '#fbcfe8'); g.addColorStop(1, '#c7d2fe');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // 은은한 원 장식
+  for (const [cx, cy, r, c] of [[980, 520, 320, 'rgba(255,255,255,.35)'], [140, 2200, 380, 'rgba(255,255,255,.28)']]) {
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill();
+  }
+  let y = 800;
+  goals.forEach((goal, i) => {
+    const x = 80, w = W - 160, px = 56;
+    const label = `GOAL ${String(i + 1).padStart(2, '0')}`;
+    const m = measure(ctx, [
+      { text: label, size: 30, weight: 800, color: '#db2777', lh: 1.2, gap: 16 },
+      { text: goal.title, size: 60, weight: 800, color: '#1f2937', lh: 1.25, gap: 16 },
+      { text: goal.memo, size: 38, weight: 500, color: '#6b7280', lh: 1.45 }], w - px * 2);
+    const subs = goal.subs.map(s => measure(ctx, [
+      { text: s.title, size: 42, weight: 700, color: '#374151', lh: 1.25, gap: 8 },
+      { text: s.memo, size: 33, weight: 400, color: '#6b7280', lh: 1.45 }], w - px * 2 - 110));
+    const subH = subs.reduce((a, s) => a + s.h + 56, 0);
+    const h = 56 + m.h + (subs.length ? 44 + subH : 0) + 40;
+    ctx.shadowColor = 'rgba(190,24,93,.18)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 20;
+    bubblePath(ctx, x, y, w, h, 56, { side: 'bottom', at: x + 120, dir: -1 });
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fill();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    drawText(ctx, m, x + px, y + 56);
+    let sy = y + 56 + m.h + 44;
+    for (const sm of subs) {
+      ctx.beginPath(); ctx.roundRect(x + px, sy - 14, w - px * 2, sm.h + 28 + 14, 28);
+      ctx.fillStyle = 'rgba(253,242,248,.9)'; ctx.fill();
+      // 체크 원
+      ctx.beginPath(); ctx.arc(x + px + 50, sy + 22, 18, 0, Math.PI * 2);
+      ctx.strokeStyle = '#f472b6'; ctx.lineWidth = 5; ctx.stroke();
+      drawText(ctx, sm, x + px + 100, sy);
+      sy += sm.h + 56;
+    }
+    y += h + 90;
+  });
+}
+
+// ── C. 마인드맵 버블 ─────────────────────────────────────────
+function designMindmap(ctx, goals) {
+  ctx.fillStyle = '#09090b'; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 1300, 50, W / 2, 1300, 900);
+  glow.addColorStop(0, 'rgba(99,102,241,.25)'); glow.addColorStop(1, 'rgba(99,102,241,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  let y = 820;
+  for (const goal of goals) {
+    const tm = measure(ctx, [{ text: goal.title, size: 54, weight: 800, color: '#fff', lh: 1.25 }], 820);
+    const tw = tm.w + 110, th = tm.h + 64, tx = (W - tw) / 2;
+    const grad = ctx.createLinearGradient(tx, y, tx + tw, y);
+    grad.addColorStop(0, '#6366f1'); grad.addColorStop(1, '#ec4899');
+    ctx.shadowColor = 'rgba(236,72,153,.45)'; ctx.shadowBlur = 60;
+    ctx.beginPath(); ctx.roundRect(tx, y, tw, th, th / 2); ctx.fillStyle = grad; ctx.fill();
+    ctx.shadowBlur = 0;
+    drawText(ctx, tm, W / 2, y + 32, 'center');
+    let cy = y + th;
+    if (goal.memo) {
+      const mm = measure(ctx, [{ text: goal.memo, size: 34, weight: 400, color: 'rgba(255,255,255,.6)', lh: 1.45 }], 820);
+      drawText(ctx, mm, W / 2, cy + 26, 'center');
+      cy += mm.h + 40;
+    }
+    // 하위목표: 좌우 지그재그 버블 + 곡선 연결
+    const top = cy;
+    let sy = cy + 70;
+    goal.subs.forEach((s, j) => {
+      const sm = measure(ctx, [
+        { text: s.title, size: 40, weight: 700, color: '#e0e7ff', lh: 1.25, gap: 8 },
+        { text: s.memo, size: 31, weight: 400, color: 'rgba(224,231,255,.6)', lh: 1.45 }], 440);
+      const sw = sm.w + 80, sh = sm.h + 56;
+      const left = j % 2 === 0;
+      const sx = left ? 110 : W - 110 - sw;
+      ctx.beginPath();
+      ctx.moveTo(W / 2, top);
+      ctx.bezierCurveTo(W / 2, sy + sh / 2, W / 2, sy + sh / 2, left ? sx + sw : sx, sy + sh / 2);
+      ctx.strokeStyle = 'rgba(165,180,252,.35)'; ctx.lineWidth = 3; ctx.stroke();
+      bubblePath(ctx, sx, sy, sw, sh, 36);
+      ctx.fillStyle = 'rgba(30,27,75,.92)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(165,180,252,.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+      drawText(ctx, sm, sx + 40, sy + 28);
+      sy += sh + 44;
+    });
+    y = sy + 80;
+  }
+}
+
+// ── D. 프로스티드 글래스 + "나" 아바타 ────────────────────────
+function designGlass(ctx, goals) {
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, '#0f766e'); g.addColorStop(.55, '#155e75'); g.addColorStop(1, '#1e1b4b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (const [cx, cy, r, c] of [[200, 700, 420, 'rgba(45,212,191,.25)'], [1000, 1900, 500, 'rgba(129,140,248,.25)']]) {
+    const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    rg.addColorStop(0, c); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  }
+  let y = 820;
+  for (const goal of goals) {
+    const x = 80, w = W - 160, px = 54;
+    const m = measure(ctx, [
+      { text: '“' + goal.title + '”', size: 58, weight: 800, color: '#fff', lh: 1.25, gap: 14 },
+      { text: goal.memo, size: 36, weight: 400, color: 'rgba(255,255,255,.72)', lh: 1.45 }], w - px * 2);
+    const subs = goal.subs.map(s => measure(ctx, [
+      { text: s.title, size: 40, weight: 700, color: '#fff', lh: 1.25, gap: 6 },
+      { text: s.memo, size: 32, weight: 400, color: 'rgba(255,255,255,.62)', lh: 1.45 }], w - px * 2 - 80));
+    const subH = subs.reduce((a, s) => a + s.h + 40, 0);
+    const h = 50 + m.h + (subs.length ? 50 + subH : 0) + 24;
+    bubblePath(ctx, x, y, w, h, 48, { side: 'bottom', at: x + 90, dir: -1 });
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 2; ctx.stroke();
+    drawText(ctx, m, x + px, y + 50);
+    let sy = y + 50 + m.h + 30;
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x + px, sy, w - px * 2, 2);
+    sy += 30;
+    for (const sm of subs) {
+      ctx.beginPath(); ctx.arc(x + px + 18, sy + 24, 16, 0, Math.PI * 2);
+      ctx.strokeStyle = '#5eead4'; ctx.lineWidth = 4; ctx.stroke();
+      drawText(ctx, sm, x + px + 70, sy);
+      sy += sm.h + 40;
+    }
+    // "나" 아바타
+    const ay = y + h + 60;
+    ctx.beginPath(); ctx.arc(x + 60, ay, 36, 0, Math.PI * 2);
+    ctx.fillStyle = '#5eead4'; ctx.fill();
+    setFont(ctx, 800, 32); ctx.fillStyle = '#134e4a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('나', x + 60, ay + 1); ctx.textAlign = 'left';
+    y = ay + 90;
+  }
+}
+
+// ── 심플: 처음 버전 ──────────────────────────────────────────
+function designSimple(ctx, goals) {
+  const PAD = 110;
   ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, W, H);
-
-  // 측정 후 세로 가운데보다 약간 아래(시계 아래)부터 그림
   const items = [];
   for (const g of goals) {
-    if (!g.title && !g.memo && !g.subs.length) continue;
     items.push({ lvl: 0, title: g.title, memo: g.memo });
     for (const s of g.subs) items.push({ lvl: 1, title: s.title, memo: s.memo });
   }
-  const blocks = items.map(it => {
-    const x = PAD + (it.lvl ? 60 : 0), w = W - x - PAD;
-    const ts = it.lvl ? 50 : 62, ms = it.lvl ? 38 : 42;
-    ctx.font = `700 ${ts}px ${font}`;
-    const tl = it.title ? wrap(ctx, it.title, w) : [];
-    ctx.font = `400 ${ms}px ${font}`;
-    const ml = it.memo ? wrap(ctx, it.memo, w) : [];
-    const h = tl.length * ts * 1.3 + ml.length * ms * 1.45 + (it.lvl ? 36 : 56);
-    return { ...it, x, ts, ms, tl, ml, h };
-  });
-  const total = blocks.reduce((a, b) => a + b.h, 0);
-  let y = Math.max(780, Math.min(H - 260 - total, 900));
-
-  for (const b of blocks) {
-    if (!b.lvl) { ctx.fillStyle = '#f59e0b'; ctx.fillRect(PAD - 36, y + 6, 10, b.ts * 1.1); }
-    else { ctx.fillStyle = '#4b5563'; ctx.fillRect(b.x - 34, y + 4, 4, b.h - 30); }
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#f9fafb';
-    ctx.font = `700 ${b.ts}px ${font}`;
-    for (const l of b.tl) { ctx.fillText(l, b.x, y); y += b.ts * 1.3; }
-    ctx.fillStyle = '#9ca3af';
-    ctx.font = `400 ${b.ms}px ${font}`;
-    for (const l of b.ml) { ctx.fillText(l, b.x, y); y += b.ms * 1.45; }
-    y += b.lvl ? 36 : 56;
+  let y = 820;
+  for (const it of items) {
+    const x = PAD + (it.lvl ? 60 : 0);
+    const m = measure(ctx, [
+      { text: it.title, size: it.lvl ? 50 : 62, weight: 700, color: '#f9fafb', lh: 1.3, gap: 4 },
+      { text: it.memo, size: it.lvl ? 38 : 42, weight: 400, color: '#9ca3af', lh: 1.45 }], W - x - PAD);
+    if (!it.lvl) { ctx.fillStyle = '#f59e0b'; ctx.fillRect(PAD - 36, y + 6, 10, 68); }
+    else { ctx.fillStyle = '#4b5563'; ctx.fillRect(x - 34, y + 4, 4, m.h); }
+    drawText(ctx, m, x, y);
+    y += m.h + (it.lvl ? 40 : 60);
   }
+}
+
+const DESIGNS = [
+  { key: 'chat', name: '채팅', draw: designChat },
+  { key: 'pastel', name: '파스텔 카드', draw: designPastel },
+  { key: 'mindmap', name: '마인드맵', draw: designMindmap },
+  { key: 'glass', name: '글래스', draw: designGlass },
+  { key: 'simple', name: '심플', draw: designSimple },
+];
+
+function drawWallpaper(design) {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const list = goals
+    .map(g => ({ ...g, subs: g.subs.filter(s => s.title || s.memo) }))
+    .filter(g => g.title || g.memo || g.subs.length);
+  design.draw(c.getContext('2d'), list);
   return c;
 }
 
+// ---- 디자인 고르기 → 이미지 저장 ----
+const DESIGN_KEY = 'goals-design';
+let blobs = {};
+
 $('wallpaper').onclick = () => {
-  drawWallpaper().toBlob(async blob => {
-    const file = new File([blob], 'goals-wallpaper.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
-    }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, 'image/png');
+  let last = null;
+  try { last = localStorage.getItem(DESIGN_KEY); } catch {}
+  const grid = $('designGrid');
+  grid.innerHTML = '';
+  blobs = {};
+  for (const d of DESIGNS) {
+    const c = drawWallpaper(d);
+    const btn = document.createElement('button');
+    btn.className = 'design' + (d.key === last ? ' last' : '');
+    const img = document.createElement('img');
+    img.src = c.toDataURL('image/jpeg', .6);
+    const label = document.createElement('span');
+    label.textContent = d.name;
+    btn.append(img, label);
+    // 공유는 탭 직후 바로 호출해야 iOS에서 막히지 않아서 미리 만들어 둠
+    c.toBlob(b => { blobs[d.key] = b; }, 'image/png');
+    btn.onclick = () => saveImage(d);
+    grid.append(btn);
+  }
+  $('sheet').hidden = false;
 };
+$('sheetClose').onclick = () => { $('sheet').hidden = true; };
+$('sheet').onclick = e => { if (e.target.id === 'sheet') $('sheet').hidden = true; };
+
+async function saveImage(d) {
+  const blob = blobs[d.key];
+  if (!blob) return;
+  try { localStorage.setItem(DESIGN_KEY, d.key); } catch {}
+  const file = new File([blob], `goals-${d.key}.png`, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 
 render();
 </script>
