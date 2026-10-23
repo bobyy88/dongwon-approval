@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>내 목표</title>
+<link rel="manifest" href="/goals-manifest.json">
+<link rel="apple-touch-icon" href="/goals-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="목표">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111827">
+<style>
+  :root { --bg:#111827; --card:#1f2937; --line:#374151; --text:#f9fafb; --sub:#9ca3af; --accent:#f59e0b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 96px); }
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  h1 { font-size:22px; margin:0; }
+  button { font:inherit; border:0; border-radius:10px; cursor:pointer; }
+  .ghost { background:none; color:var(--sub); padding:6px 10px; font-size:14px; }
+  .goal { background:var(--card); border-radius:14px; padding:14px; margin-bottom:14px; border-left:4px solid var(--accent); }
+  .sub { margin:10px 0 0 12px; padding:8px 0 0 12px; border-left:2px solid var(--line); }
+  input, textarea { width:100%; background:transparent; color:var(--text); border:0; outline:0; font:inherit; padding:2px 0; resize:none; }
+  .goal > .title { font-size:18px; font-weight:700; }
+  .sub .title { font-size:16px; font-weight:600; }
+  textarea { color:var(--sub); font-size:14px; line-height:1.5; overflow:hidden; }
+  input::placeholder, textarea::placeholder { color:#4b5563; }
+  .row { display:flex; gap:6px; align-items:center; }
+  .row input { flex:1; }
+  .del { background:none; color:#6b7280; font-size:18px; padding:0 4px; display:none; }
+  .addsub { background:none; color:var(--accent); font-size:14px; padding:8px 0 0 24px; display:none; }
+  body.editing .del, body.editing .addsub { display:inline-block; }
+  body:not(.editing) input, body:not(.editing) textarea { pointer-events:none; }
+  body:not(.editing) textarea:placeholder-shown, body:not(.editing) input:placeholder-shown { display:none; }
+  .bar { position:fixed; left:0; right:0; bottom:0; display:flex; gap:8px;
+    padding:12px 16px calc(env(safe-area-inset-bottom) + 12px); background:linear-gradient(transparent, var(--bg) 30%); }
+  .bar button { flex:1; padding:14px; font-weight:600; }
+  .primary { background:var(--accent); color:#111; }
+  .secondary { background:var(--card); color:var(--text); }
+  .empty { color:var(--sub); text-align:center; margin-top:40vh; transform:translateY(-50%); line-height:1.7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎯 내 목표</h1>
+  <button class="ghost" id="toggle">편집</button>
+</header>
+<main id="list"></main>
+<div class="bar">
+  <button class="secondary" id="addTop" hidden>+ 상위목표</button>
+  <button class="primary" id="wallpaper">배경화면 이미지 저장</button>
+</div>
+
+<script>
+const KEY = 'goals-v1';
+let goals = [];
+try { goals = JSON.parse(localStorage.getItem(KEY)) || []; } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(goals)); } catch {} };
+const uid = () => Math.random().toString(36).slice(2, 9);
+const $ = id => document.getElementById(id);
+
+function grow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+
+function field(tag, obj, key, cls, ph) {
+  const el = document.createElement(tag);
+  el.value = obj[key] || '';
+  el.placeholder = ph;
+  if (cls) el.className = cls;
+  if (tag === 'textarea') { el.rows = 1; requestAnimationFrame(() => grow(el)); }
+  el.oninput = () => { obj[key] = el.value; save(); if (tag === 'textarea') grow(el); };
+  return el;
+}
+
+function delBtn(onDel) {
+  const b = document.createElement('button');
+  b.className = 'del'; b.textContent = '✕';
+  b.onclick = () => { if (confirm('삭제할까요?')) { onDel(); save(); render(); } };
+  return b;
+}
+
+function render() {
+  const list = $('list');
+  list.innerHTML = '';
+  if (!goals.length) {
+    list.innerHTML = '<p class="empty">아직 목표가 없어요.<br>오른쪽 위 <b>편집</b>을 눌러 추가하세요.</p>';
+  }
+  goals.forEach((g, i) => {
+    const card = document.createElement('section');
+    card.className = 'goal';
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.append(field('input', g, 'title', 'title', '상위목표'), delBtn(() => goals.splice(i, 1)));
+    card.append(row, field('textarea', g, 'memo', '', '해야 할 일 메모'));
+
+    (g.subs ||= []).forEach((s, j) => {
+      const sub = document.createElement('div');
+      sub.className = 'sub';
+      const r = document.createElement('div');
+      r.className = 'row';
+      r.append(field('input', s, 'title', 'title', '하위목표'), delBtn(() => g.subs.splice(j, 1)));
+      sub.append(r, field('textarea', s, 'memo', '', '해야 할 일 메모'));
+      card.append(sub);
+    });
+
+    const add = document.createElement('button');
+    add.className = 'addsub'; add.textContent = '+ 하위목표';
+    add.onclick = () => { g.subs.push({ id: uid(), title: '', memo: '' }); save(); render(); focusLast(i); };
+    card.append(add);
+    list.append(card);
+  });
+}
+
+function focusLast(i) {
+  const cards = document.querySelectorAll('.goal');
+  const inputs = (cards[i ?? cards.length - 1] || document).querySelectorAll('.goal input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+$('toggle').onclick = () => {
+  const on = document.body.classList.toggle('editing');
+  $('toggle').textContent = on ? '완료' : '편집';
+  $('addTop').hidden = !on;
+  if (!on) { goals = goals.filter(g => g.title || g.memo || g.subs.length); save(); render(); }
+};
+$('addTop').onclick = () => {
+  goals.push({ id: uid(), title: '', memo: '', subs: [] }); save(); render(); focusLast();
+};
+
+// ---- 배경화면 이미지 (폰 잠금/홈 화면용) ----
+function wrap(ctx, text, maxW) {
+  const lines = [];
+  for (const para of String(text).split('\n')) {
+    let line = '';
+    for (const ch of para) {
+      if (ctx.measureText(line + ch).width > maxW && line) { lines.push(line); line = ch; }
+      else line += ch;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function drawWallpaper() {
+  const W = 1170, H = 2532, PAD = 110;
+  const font = '-apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, W, H);
+
+  // 측정 후 세로 가운데보다 약간 아래(시계 아래)부터 그림
+  const items = [];
+  for (const g of goals) {
+    if (!g.title && !g.memo && !g.subs.length) continue;
+    items.push({ lvl: 0, title: g.title, memo: g.memo });
+    for (const s of g.subs) items.push({ lvl: 1, title: s.title, memo: s.memo });
+  }
+  const blocks = items.map(it => {
+    const x = PAD + (it.lvl ? 60 : 0), w = W - x - PAD;
+    const ts = it.lvl ? 50 : 62, ms = it.lvl ? 38 : 42;
+    ctx.font = `700 ${ts}px ${font}`;
+    const tl = it.title ? wrap(ctx, it.title, w) : [];
+    ctx.font = `400 ${ms}px ${font}`;
+    const ml = it.memo ? wrap(ctx, it.memo, w) : [];
+    const h = tl.length * ts * 1.3 + ml.length * ms * 1.45 + (it.lvl ? 36 : 56);
+    return { ...it, x, ts, ms, tl, ml, h };
+  });
+  const total = blocks.reduce((a, b) => a + b.h, 0);
+  let y = Math.max(780, Math.min(H - 260 - total, 900));
+
+  for (const b of blocks) {
+    if (!b.lvl) { ctx.fillStyle = '#f59e0b'; ctx.fillRect(PAD - 36, y + 6, 10, b.ts * 1.1); }
+    else { ctx.fillStyle = '#4b5563'; ctx.fillRect(b.x - 34, y + 4, 4, b.h - 30); }
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#f9fafb';
+    ctx.font = `700 ${b.ts}px ${font}`;
+    for (const l of b.tl) { ctx.fillText(l, b.x, y); y += b.ts * 1.3; }
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = `400 ${b.ms}px ${font}`;
+    for (const l of b.ml) { ctx.fillText(l, b.x, y); y += b.ms * 1.45; }
+    y += b.lvl ? 36 : 56;
+  }
+  return c;
+}
+
+$('wallpaper').onclick = () => {
+  drawWallpaper().toBlob(async blob => {
+    const file = new File([blob], 'goals-wallpaper.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+};
+
+render();
+</script>
+</body>
+</html>

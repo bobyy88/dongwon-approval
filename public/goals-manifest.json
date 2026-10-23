@@ -1,0 +1,13 @@
+{
+  "name": "내 목표",
+  "short_name": "목표",
+  "start_url": "/goals.html",
+  "scope": "/goals.html",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "/goals-icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/goals-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
